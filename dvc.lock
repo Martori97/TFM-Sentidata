@@ -1,0 +1,20 @@
+schema: '2.0'
+stages:
+  descarga_kaggle_reviews:
+    cmd: python scripts/data_ingestion/descarga_kaggle_reviews.py
+    deps:
+    - path: scripts/data_ingestion/descarga_kaggle_reviews.py
+      hash: md5
+      md5: 95b16b9a59c551f67ddf1f0e833bfe76
+      size: 765
+    outs:
+    - path: data/landing/sephora/delta
+      hash: md5
+      md5: 8b7019941c39ea0d57fae739d69994b5.dir
+      size: 528949733
+      nfiles: 6
+    - path: data/landing/ulta/delta
+      hash: md5
+      md5: 4801b579aff96d61657360644b9bd6ad.dir
+      size: 1417818
+      nfiles: 1

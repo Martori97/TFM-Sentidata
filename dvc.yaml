@@ -1,0 +1,8 @@
+stages:
+  descarga_kaggle_reviews:
+    cmd: python scripts/data_ingestion/descarga_kaggle_reviews.py
+    deps:
+    - scripts/data_ingestion/descarga_kaggle_reviews.py
+    outs:
+    - data/landing/sephora/delta
+    - data/landing/ulta/delta
