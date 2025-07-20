@@ -15,3 +15,13 @@ stages:
     outs:
     - data/landing/sephora/delta
     - data/landing/ulta/delta
+  trusted_cleaning:
+    cmd: python scripts/data_cleaning/trusted_clean_driver.py
+    deps:
+    - data/landing/sephora/delta
+    - data/landing/ulta/delta
+    - scripts/data_cleaning/trusted_clean_driver.py
+    - scripts/data_cleaning/trusted_clean_single.py
+    outs:
+    - data/trusted/sephora_clean
+    - data/trusted/ulta_clean
