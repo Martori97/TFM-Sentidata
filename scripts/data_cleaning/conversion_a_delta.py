@@ -1,38 +1,57 @@
 import os
-import pandas as pd
+from pyspark.sql import SparkSession
+from delta import configure_spark_with_delta_pip
 
-def convertir_a_parquet(origen, destino):
-    if not os.path.exists(origen):
-        print(f"La ruta de origen no existe: {origen}")
-        return
+# Inicializa Spark con soporte para Delta Lake
+builder = SparkSession.builder \
+    .appName("Conversión a Delta Lake") \
+    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
+    .config("spark.master", "local[*]") \
+    .config("spark.sql.warehouse.dir", "file:///tmp/spark-warehouse") \
+    .config("spark.hadoop.fs.defaultFS", "file:///") \
+    .config("spark.driver.memory", "4g") \
+    .config("spark.executor.memory", "4g")
 
-    os.makedirs(destino, exist_ok=True)
+spark = configure_spark_with_delta_pip(builder).getOrCreate()
 
-    archivos = [f for f in os.listdir(origen) if f.endswith(".csv")]
+# Carpetas de entrada y salida
+datasets = {
+    "sephora": {
+        "input_folder": "data/landing/sephora/raw",
+        "output_folder": "data/landing/sephora/delta"
+    },
+    "ulta": {
+        "input_folder": "data/landing/ulta/raw",
+        "output_folder": "data/landing/ulta/delta"
+    }
+}
 
-    if not archivos:
-        print(f"No se encontraron archivos CSV en {origen}")
-        return
+# Procesar cada carpeta
+for nombre, rutas in datasets.items():
+    input_folder = rutas["input_folder"]
+    output_base = rutas["output_folder"]
 
-    for archivo in archivos:
-        nombre_base = os.path.splitext(archivo)[0]
-        ruta_entrada = os.path.join(origen, archivo)
-        ruta_salida = os.path.join(destino, f"{nombre_base}.parquet")
+    print(f"Procesando dataset: {nombre}")
+    if not os.path.exists(input_folder):
+        print(f"Carpeta no encontrada: {input_folder}")
+        continue
 
-        print(f"Convirtiendo {ruta_entrada} a {ruta_salida}")
-        try:
-            df = pd.read_csv(ruta_entrada, low_memory=False, dtype=str)
-            df.to_parquet(ruta_salida, index=False)
-        except Exception as e:
-            print(f"Error al procesar {archivo}: {e}")
+    for archivo in os.listdir(input_folder):
+        if archivo.endswith(".csv"):
+            ruta_csv = os.path.join(input_folder, archivo)
+            nombre_base = os.path.splitext(archivo)[0]
+            nombre_base_sanitizado = nombre_base.replace("-", "_")
+            ruta_delta = os.path.join(output_base, nombre_base_sanitizado)
 
-if __name__ == "__main__":
-    convertir_a_parquet(
-        origen="data/landing/sephora/raw",
-        destino="data/landing/sephora/delta"
-    )
+            os.makedirs(ruta_delta, exist_ok=True)
 
-    convertir_a_parquet(
-        origen="data/landing/ulta/raw",
-        destino="data/landing/ulta/delta"
-    )
+            print(f"Convirtiendo: {archivo} → {ruta_delta}")
+
+            df = spark.read.option("header", True).option("inferSchema", True).csv(ruta_csv)
+            df = df.dropna(how="all")
+            df.write.format("delta").mode("overwrite").save(ruta_delta)
+
+            print(f"Guardado en: {ruta_delta}")
+
+spark.stop()

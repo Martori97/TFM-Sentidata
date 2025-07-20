@@ -4,42 +4,48 @@ echo "=== Verificación de DVC en el proyecto ==="
 
 # Verificar existencia de dvc.yaml
 if [ -f "dvc.yaml" ]; then
-    echo "[✔] dvc.yaml encontrado"
+    echo "[OK] dvc.yaml encontrado"
 else
-    echo "[✘] dvc.yaml no encontrado"
+    echo "[ERROR] dvc.yaml no encontrado"
     exit 1
 fi
 
-# Ver grafo del pipeline
-echo -e "\n[→] Grafo del pipeline (dvc dag):"
-dvc dag || { echo "[✘] Error al generar el DAG"; exit 1; }
+# Mostrar grafo del pipeline (opcional)
+#echo -e "\n[→] Grafo del pipeline (dvc dag):"
+#dvc dag || { echo "[ERROR] Error al generar el DAG"; exit 1; }
 
-# Comprobar que los outputs existen
-echo -e "\n[→] Archivos descargados desde Kaggle:"
+# Comprobar que los datos en landing existen
+echo -e "\n[→] Verificando datos convertidos a Delta en zona landing:"
 if [ -d "data/landing/sephora/delta" ] && [ -d "data/landing/ulta/delta" ]; then
-    ls -l data/landing/sephora/delta | grep .csv || echo "No hay archivos CSV"
-    ls -l data/landing/ulta/delta | grep .csv || echo "No hay archivos CSV"
-    echo "[✔] Directorios de datos existen"
+    find data/landing/sephora/delta -type f -name "*.parquet" | head -n 3
+    find data/landing/ulta/delta -type f -name "*.parquet" | head -n 3
+    echo "[OK] Archivos Delta encontrados en landing"
 else
-    echo "[✘] No se encuentran los datos descargados"
+    echo "[ERROR] Faltan carpetas en data/landing"
     exit 1
 fi
 
-# Verificar si los datos están ignorados por Git
-echo -e "\n[→] Verificando .gitignore:"
-if grep -q "data/landing/" .gitignore; then
-    echo "[✔] data/landing está en .gitignore"
+# Comprobar que los datos en trusted existen
+echo -e "\n[→] Verificando datos en zona trusted:"
+if [ -d "data/trusted/sephora_clean" ] && [ -d "data/trusted/ulta_clean" ]; then
+    find data/trusted/sephora_clean -type f | head -n 3
+    find data/trusted/ulta_clean -type f | head -n 3
+    echo "[OK] Archivos encontrados en trusted"
 else
-    echo "[✘] data/landing no está ignorado por Git"
+    echo "[ERROR] Faltan carpetas en data/trusted"
+    exit 1
 fi
 
-# Verificar estado de DVC
-echo -e "\n[→] dvc status:"
+# Verificar si están ignorados por Git
+echo -e "\n[→] Verificando .gitignore:"
+if grep -q "data/landing/" .gitignore && grep -q "data/trusted/" .gitignore; then
+    echo "[OK] data/landing y data/trusted están en .gitignore"
+else
+    echo "[ADVERTENCIA] Revisa que data/landing y data/trusted estén correctamente ignorados"
+fi
+
+# Verificar estado del pipeline
+echo -e "\n[→] Estado del pipeline (dvc status):"
 dvc status
 
-# Prueba de reproducibilidad (comentado por seguridad)
-# echo -e "\n[→] Eliminando CSV de Sephora para probar repro..."
-# rm data/landing/sephora/delta/*.csv
-# dvc repro
-
-echo -e "\n [✔] Verificación completa."
+echo -e "\n[FIN] Verificación completa."
