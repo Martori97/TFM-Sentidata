@@ -4,5 +4,14 @@ stages:
     deps:
     - scripts/data_ingestion/descarga_kaggle_reviews.py
     outs:
+    - data/landing/sephora/raw
+    - data/landing/ulta/raw
+  conversion_a_delta:
+    cmd: python scripts/data_cleaning/conversion_a_delta.py
+    deps:
+    - data/landing/sephora/raw
+    - data/landing/ulta/raw
+    - scripts/data_cleaning/conversion_a_delta.py
+    outs:
     - data/landing/sephora/delta
     - data/landing/ulta/delta

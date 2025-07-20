@@ -5,16 +5,44 @@ stages:
     deps:
     - path: scripts/data_ingestion/descarga_kaggle_reviews.py
       hash: md5
-      md5: 95b16b9a59c551f67ddf1f0e833bfe76
-      size: 765
+      md5: e27b06cc672ef4f0b2347bf61ccb6322
+      size: 762
     outs:
-    - path: data/landing/sephora/delta
+    - path: data/landing/sephora/raw
       hash: md5
       md5: 8b7019941c39ea0d57fae739d69994b5.dir
       size: 528949733
       nfiles: 6
-    - path: data/landing/ulta/delta
+    - path: data/landing/ulta/raw
       hash: md5
       md5: 4801b579aff96d61657360644b9bd6ad.dir
       size: 1417818
+      nfiles: 1
+  conversion_a_delta:
+    cmd: python scripts/data_cleaning/conversion_a_delta.py
+    deps:
+    - path: data/landing/sephora/raw
+      hash: md5
+      md5: 8b7019941c39ea0d57fae739d69994b5.dir
+      size: 528949733
+      nfiles: 6
+    - path: data/landing/ulta/raw
+      hash: md5
+      md5: 4801b579aff96d61657360644b9bd6ad.dir
+      size: 1417818
+      nfiles: 1
+    - path: scripts/data_cleaning/conversion_a_delta.py
+      hash: md5
+      md5: 2d15ede19bfc9df6fe0b14bd7b4896c6
+      size: 1139
+    outs:
+    - path: data/landing/sephora/delta
+      hash: md5
+      md5: d7de7851fb3c5035bad091b92ae0a6e5.dir
+      size: 228775024
+      nfiles: 6
+    - path: data/landing/ulta/delta
+      hash: md5
+      md5: 279a3f893fad3f9ea290b52f295961ac.dir
+      size: 582467
       nfiles: 1
