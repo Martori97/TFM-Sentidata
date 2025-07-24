@@ -1,0 +1,15 @@
+artifact_uri: file:///home/davidmc/MASTER_BIGDATA/TFM/TFM-Sentidata/models/mlflow_runs/444891536812567242/79a5c6ac2dca4611a22b373f75958dce/artifacts
+deleted_time: 1753012783930
+end_time: 1753012345317
+entry_point_name: ''
+experiment_id: '444891536812567242'
+lifecycle_stage: deleted
+run_id: 79a5c6ac2dca4611a22b373f75958dce
+run_name: gifted-sow-276
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1753012345313
+status: 4
+tags: []
+user_id: davidmc

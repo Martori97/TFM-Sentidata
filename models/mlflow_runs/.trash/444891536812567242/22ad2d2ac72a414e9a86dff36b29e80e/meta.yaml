@@ -1,0 +1,15 @@
+artifact_uri: file:///home/davidmc/MASTER_BIGDATA/TFM/TFM-Sentidata/models/mlflow_runs/444891536812567242/22ad2d2ac72a414e9a86dff36b29e80e/artifacts
+deleted_time: 1753012783930
+end_time: 1753012232672
+entry_point_name: ''
+experiment_id: '444891536812567242'
+lifecycle_stage: deleted
+run_id: 22ad2d2ac72a414e9a86dff36b29e80e
+run_name: zealous-whale-723
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1753012232667
+status: 4
+tags: []
+user_id: davidmc

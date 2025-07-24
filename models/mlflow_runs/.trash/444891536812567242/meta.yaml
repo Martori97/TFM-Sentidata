@@ -1,0 +1,7 @@
+artifact_location: file:///home/davidmc/MASTER_BIGDATA/TFM/TFM-Sentidata/models/mlflow_runs/444891536812567242
+creation_time: 1753011826746
+experiment_id: '444891536812567242'
+last_update_time: 1753012783930
+lifecycle_stage: deleted
+name: sentidata_regresion_lineal
+tags: {}

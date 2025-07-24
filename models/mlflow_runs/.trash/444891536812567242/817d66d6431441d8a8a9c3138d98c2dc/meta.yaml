@@ -1,0 +1,15 @@
+artifact_uri: file:///home/davidmc/MASTER_BIGDATA/TFM/TFM-Sentidata/models/mlflow_runs/444891536812567242/817d66d6431441d8a8a9c3138d98c2dc/artifacts
+deleted_time: 1753012783930
+end_time: 1753012642480
+entry_point_name: ''
+experiment_id: '444891536812567242'
+lifecycle_stage: deleted
+run_id: 817d66d6431441d8a8a9c3138d98c2dc
+run_name: clumsy-stork-12
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1753012640516
+status: 3
+tags: []
+user_id: davidmc
