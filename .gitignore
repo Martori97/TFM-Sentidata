@@ -6,3 +6,14 @@ data/landing/
 data/trusted/
 data/exploitation/
 
+data/
+models/
+.dvc/cache/
+report/
+venv/
+*.parquet
+*.delta
+*.pt
+*.bin
+*.safetensors
+notebooks/*_out.ipynb
