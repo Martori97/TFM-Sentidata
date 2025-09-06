@@ -6,3 +6,4 @@ data/landing/
 data/trusted/
 data/exploitation/
 
+models/*.joblib
