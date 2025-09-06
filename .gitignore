@@ -7,3 +7,5 @@ data/trusted/
 data/exploitation/
 
 models/*.joblib
+models/**/*.joblib
+*.joblib
