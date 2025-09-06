@@ -1,5 +1,0 @@
-outs:
-- md5: 960a3084f721ba48cf95fd875010d071
-  size: 1090759737
-  hash: md5
-  path: sentiment_model_rf_v2.joblib
