@@ -1,3 +1,12 @@
 # Requisitos del proyecto
 mlflow
 dvc
+pyspark
+delta-spark
+kaggle
+pandas
+seaborn
+numpy
+matplotlib
+scikit-learn
+nltk
