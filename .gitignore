@@ -1,11 +1,14 @@
-venv/
-__pycache__/
-*.pyc
-.env
-data/landing/
-data/trusted/
-data/exploitation/
-
-models/*.joblib
-models/**/*.joblib
+# Ignorar modelos y artefactos pesados
+models/*
 *.joblib
+*.bin
+*.pt
+*.h5
+
+# Ignorar datasets locales (los maneja DVC)
+data/*
+!data/.gitkeep
+
+# Ignorar caches temporales
+.cache/
+__pycache__/
