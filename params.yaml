@@ -1,0 +1,54 @@
+model:
+  albert:
+    # --- base ---
+    model_name: albert-base-v2
+    num_labels: 3
+
+    # --- velocidad vs memoria ---
+    max_len: 128
+    batch: 128             # SUBIMOS batch size para aprovechar la GPU
+    epochs: 3
+    lr: 2e-5
+    weight_decay: 0.01
+    seed: 42
+    prefer_cuda: 1         # usa GPU si está disponible
+
+    # --- precisión mixta / compilación ---
+    bf16: true             # bfloat16 soportado en RTX 4050
+    fp16: false            # lo dejamos en false, bf16 ya es estable y mejor
+    gradient_checkpointing: false   # lo quitamos, no hace falta si hay VRAM suficiente
+    torch_compile: true             # activamos compilación para mayor velocidad
+    torch_compile_backend: inductor
+    torch_compile_mode: max-autotune
+
+    # --- DataLoader ---
+    dataloader_num_workers: 4       # más workers para paralelizar
+    dataloader_prefetch_factor: 4
+    dataloader_pin_memory: true
+    dataloader_persistent_workers: true
+    grad_accum: 1
+    warmup_ratio: 0.06
+
+    # --- Tokenización paralela ---
+    tokenize_num_proc: 8
+
+    # --- Optimizador ---
+    optim: adamw_torch_fused
+
+    # --- Checkpoints / logging / early stop ---
+    save_strategy: steps
+    save_steps: 6000
+    eval_strategy: steps
+    eval_steps: 6000
+    logging_strategy: "no"
+    save_total_limit: 2
+    patience: 2
+    load_best_model_at_end: true    # ahora sí, ya que save/eval usan steps
+    metric_for_best_model: eval_f1
+    greater_is_better: true
+
+    # --- reanudar desde último checkpoint ---
+    resume_from_last: true
+
+inference:
+  batch: 256    # subimos también el batch en inferencia

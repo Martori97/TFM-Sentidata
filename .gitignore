@@ -17,3 +17,6 @@ venv/
 *.bin
 *.safetensors
 notebooks/*_out.ipynb
+
+# Ignore Windows ADS leftovers
+*:Zone.Identifier

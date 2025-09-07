@@ -38,12 +38,12 @@ stages:
     outs:
     - path: data/landing/sephora/delta
       hash: md5
-      md5: 39c99561684a67cebfb4b31442a84f6c.dir
-      size: 231057821
-      nfiles: 188
+      md5: ed49bb476aeace9e3a2e1bcb870a4d61.dir
+      size: 230119217
+      nfiles: 172
     - path: data/landing/ulta/delta
       hash: md5
-      md5: c7c7e40a30081d401f2613b1a1ea681f.dir
+      md5: dec95f528f353235c330baef8efc965a.dir
       size: 592065
       nfiles: 4
   trusted_cleaning:
@@ -51,12 +51,12 @@ stages:
     deps:
     - path: data/landing/sephora/delta
       hash: md5
-      md5: 39c99561684a67cebfb4b31442a84f6c.dir
-      size: 231057821
-      nfiles: 188
+      md5: ed49bb476aeace9e3a2e1bcb870a4d61.dir
+      size: 230119217
+      nfiles: 172
     - path: data/landing/ulta/delta
       hash: md5
-      md5: c7c7e40a30081d401f2613b1a1ea681f.dir
+      md5: dec95f528f353235c330baef8efc965a.dir
       size: 592065
       nfiles: 4
     - path: scripts/data_cleaning/trusted_clean_driver.py
@@ -65,16 +65,302 @@ stages:
       size: 838
     - path: scripts/data_cleaning/trusted_clean_single.py
       hash: md5
-      md5: 20425a8564e37e81499f3688089c88ce
-      size: 1594
+      md5: e7cffc86050618e261120472e5fd8400
+      size: 3596
     outs:
     - path: data/trusted/sephora_clean
       hash: md5
-      md5: dbc3fd65700af1e91c2cab66e6ab24b7.dir
-      size: 249124032
-      nfiles: 292
+      md5: 0739f8232639cf95b85e2c54bc2975b7.dir
+      size: 294488733
+      nfiles: 248
     - path: data/trusted/ulta_clean
       hash: md5
-      md5: 7d9ed562e38529d2808e63459dc0240e.dir
+      md5: 1d1afb4d7ccf987633f855ca12beb8b0.dir
       size: 605345
       nfiles: 4
+  train_albert_subset_0_250:
+    cmd: "python scripts/training/train_albert.py --input_delta data/trusted/sephora_clean/reviews_0_250
+      --output_dir models/albert_subset_0_250\n"
+    deps:
+    - path: data/trusted/sephora_clean/reviews_0_250
+      hash: md5
+      md5: b79eb973a0297c11d8807d09c51efb23.dir
+      size: 156583273
+      nfiles: 48
+    - path: params.yaml
+      hash: md5
+      md5: fe6dae8d9909b03c195a0a998e695d9d
+      size: 1611
+    - path: scripts/training/train_albert.py
+      hash: md5
+      md5: 4426d018e065d6e526be6dabb382e592
+      size: 15510
+    outs:
+    - path: models/albert_subset_0_250
+      hash: md5
+      md5: d716746ea4e5e9d13685e7125f1b0bd6.dir
+      size: 336470642
+      nfiles: 31
+  prepare_test_albert_subset_0_250:
+    cmd: "python scripts/training/prepare_test_parquet.py --input data/trusted/sephora_clean/reviews_0_250
+      --output reports/albert_subset_0_250/test.parquet --text_col review_text --rating_col
+      rating --id_col review_id --seed 42 --test_size 0.15\n"
+    deps:
+    - path: data/trusted/sephora_clean/reviews_0_250
+      hash: md5
+      md5: b79eb973a0297c11d8807d09c51efb23.dir
+      size: 156583273
+      nfiles: 48
+    - path: scripts/training/prepare_test_parquet.py
+      hash: md5
+      md5: 7fc912201c1f81d4ddcd1ba14c5d9eaf
+      size: 1678
+    outs:
+    - path: reports/albert_subset_0_250/test.parquet
+      hash: md5
+      md5: 0bd888cdc55fb97ff85845772e71a408
+      size: 23693777
+  eval_albert_subset_0_250:
+    cmd: "python scripts/training/evaluate_albert.py --model_dir models/albert_subset_0_250
+      --test_parquet reports/albert_subset_0_250/test.parquet --output_dir reports/albert_subset_0_250
+      --max_len 128\n"
+    deps:
+    - path: models/albert_subset_0_250
+      hash: md5
+      md5: d716746ea4e5e9d13685e7125f1b0bd6.dir
+      size: 336470642
+      nfiles: 31
+    - path: reports/albert_subset_0_250/test.parquet
+      hash: md5
+      md5: 0bd888cdc55fb97ff85845772e71a408
+      size: 23693777
+    - path: scripts/training/evaluate_albert.py
+      hash: md5
+      md5: 49c5516dc0ca77677b80ada869642d55
+      size: 7682
+    outs:
+    - path: reports/albert_subset_0_250/metrics.json
+      hash: md5
+      md5: 7257f23a0c1215497b93874fbae5748f
+      size: 259
+    - path: reports/albert_subset_0_250/predictions.parquet
+      hash: md5
+      md5: 763921d5dc9590614ac0485fe1160735
+      size: 5334591
+  infer_sephora@reviews_0_250:
+    cmd: "TOKENIZERS_PARALLELISM=false python scripts/training/infer_albert_all.py
+      --model_dir models/albert_subset_0_250 --input_parquet data/trusted/sephora_clean/reviews_0_250
+      --output_parquet reports/albert_subset_all/reviews_0_250_preds.parquet --text_col
+      review_text --id_col review_id --max_len 128 --batch 256 --num_workers 8\n"
+    deps:
+    - path: data/trusted/sephora_clean/reviews_0_250
+      hash: md5
+      md5: b79eb973a0297c11d8807d09c51efb23.dir
+      size: 156583273
+      nfiles: 48
+    - path: models/albert_subset_0_250
+      hash: md5
+      md5: d716746ea4e5e9d13685e7125f1b0bd6.dir
+      size: 336470642
+      nfiles: 31
+    - path: scripts/training/infer_albert_all.py
+      hash: md5
+      md5: 763f57dfc6372006ae1bac8288091486
+      size: 6047
+    outs:
+    - path: reports/albert_subset_all/reviews_0_250_preds.parquet
+      hash: md5
+      md5: cc55a7174b103314984280eea8a0843f
+      size: 32664049
+  infer_sephora@reviews_250_500:
+    cmd: "TOKENIZERS_PARALLELISM=false python scripts/training/infer_albert_all.py
+      --model_dir models/albert_subset_0_250 --input_parquet data/trusted/sephora_clean/reviews_250_500
+      --output_parquet reports/albert_subset_all/reviews_250_500_preds.parquet --text_col
+      review_text --id_col review_id --max_len 128 --batch 256 --num_workers 8\n"
+    deps:
+    - path: data/trusted/sephora_clean/reviews_250_500
+      hash: md5
+      md5: 8cc2a9aed5594e92f3ec2aabd41d91ac.dir
+      size: 55971579
+      nfiles: 48
+    - path: models/albert_subset_0_250
+      hash: md5
+      md5: d716746ea4e5e9d13685e7125f1b0bd6.dir
+      size: 336470642
+      nfiles: 31
+    - path: scripts/training/infer_albert_all.py
+      hash: md5
+      md5: 763f57dfc6372006ae1bac8288091486
+      size: 6047
+    outs:
+    - path: reports/albert_subset_all/reviews_250_500_preds.parquet
+      hash: md5
+      md5: 8dcff5092b5cedcca7a6a39b7f837c79
+      size: 11849462
+  infer_sephora@reviews_500_750:
+    cmd: "TOKENIZERS_PARALLELISM=false python scripts/training/infer_albert_all.py
+      --model_dir models/albert_subset_0_250 --input_parquet data/trusted/sephora_clean/reviews_500_750
+      --output_parquet reports/albert_subset_all/reviews_500_750_preds.parquet --text_col
+      review_text --id_col review_id --max_len 128 --batch 256 --num_workers 8\n"
+    deps:
+    - path: data/trusted/sephora_clean/reviews_500_750
+      hash: md5
+      md5: 275fcc388a788f11fb68cb5e7eef36df.dir
+      size: 31697354
+      nfiles: 48
+    - path: models/albert_subset_0_250
+      hash: md5
+      md5: d716746ea4e5e9d13685e7125f1b0bd6.dir
+      size: 336470642
+      nfiles: 31
+    - path: scripts/training/infer_albert_all.py
+      hash: md5
+      md5: 763f57dfc6372006ae1bac8288091486
+      size: 6047
+    outs:
+    - path: reports/albert_subset_all/reviews_500_750_preds.parquet
+      hash: md5
+      md5: 40fdd7cde3e6dd4544f86a8e9f317b6b
+      size: 6742460
+  infer_sephora@reviews_750_1250:
+    cmd: "TOKENIZERS_PARALLELISM=false python scripts/training/infer_albert_all.py
+      --model_dir models/albert_subset_0_250 --input_parquet data/trusted/sephora_clean/reviews_750_1250
+      --output_parquet reports/albert_subset_all/reviews_750_1250_preds.parquet --text_col
+      review_text --id_col review_id --max_len 128 --batch 256 --num_workers 8\n"
+    deps:
+    - path: data/trusted/sephora_clean/reviews_750_1250
+      hash: md5
+      md5: e40cd78359555918694e1dc089537a7a.dir
+      size: 32937566
+      nfiles: 48
+    - path: models/albert_subset_0_250
+      hash: md5
+      md5: d716746ea4e5e9d13685e7125f1b0bd6.dir
+      size: 336470642
+      nfiles: 31
+    - path: scripts/training/infer_albert_all.py
+      hash: md5
+      md5: 763f57dfc6372006ae1bac8288091486
+      size: 6047
+    outs:
+    - path: reports/albert_subset_all/reviews_750_1250_preds.parquet
+      hash: md5
+      md5: 76619d22fb0de3a5684f4394db6e8a5f
+      size: 6947643
+  infer_sephora@reviews_1250_end:
+    cmd: "TOKENIZERS_PARALLELISM=false python scripts/training/infer_albert_all.py
+      --model_dir models/albert_subset_0_250 --input_parquet data/trusted/sephora_clean/reviews_1250_end
+      --output_parquet reports/albert_subset_all/reviews_1250_end_preds.parquet --text_col
+      review_text --id_col review_id --max_len 128 --batch 256 --num_workers 8\n"
+    deps:
+    - path: data/trusted/sephora_clean/reviews_1250_end
+      hash: md5
+      md5: 7a45ee50b29b34c06329f1bcc1d6d57d.dir
+      size: 14461047
+      nfiles: 46
+    - path: models/albert_subset_0_250
+      hash: md5
+      md5: d716746ea4e5e9d13685e7125f1b0bd6.dir
+      size: 336470642
+      nfiles: 31
+    - path: scripts/training/infer_albert_all.py
+      hash: md5
+      md5: 763f57dfc6372006ae1bac8288091486
+      size: 6047
+    outs:
+    - path: reports/albert_subset_all/reviews_1250_end_preds.parquet
+      hash: md5
+      md5: c984701e285ac6e713a2cb278637305a
+      size: 2955176
+  merge_infer_sephora:
+    cmd: "python scripts/evaluation/merge_parquets.py --out reports/albert_subset_all/predictions_all.parquet
+      reports/albert_subset_all/reviews_0_250_preds.parquet reports/albert_subset_all/reviews_250_500_preds.parquet
+      reports/albert_subset_all/reviews_500_750_preds.parquet reports/albert_subset_all/reviews_750_1250_preds.parquet
+      reports/albert_subset_all/reviews_1250_end_preds.parquet\n"
+    deps:
+    - path: reports/albert_subset_all/reviews_0_250_preds.parquet
+      hash: md5
+      md5: cc55a7174b103314984280eea8a0843f
+      size: 32664049
+    - path: reports/albert_subset_all/reviews_1250_end_preds.parquet
+      hash: md5
+      md5: c984701e285ac6e713a2cb278637305a
+      size: 2955176
+    - path: reports/albert_subset_all/reviews_250_500_preds.parquet
+      hash: md5
+      md5: 8dcff5092b5cedcca7a6a39b7f837c79
+      size: 11849462
+    - path: reports/albert_subset_all/reviews_500_750_preds.parquet
+      hash: md5
+      md5: 40fdd7cde3e6dd4544f86a8e9f317b6b
+      size: 6742460
+    - path: reports/albert_subset_all/reviews_750_1250_preds.parquet
+      hash: md5
+      md5: 76619d22fb0de3a5684f4394db6e8a5f
+      size: 6947643
+    - path: scripts/evaluation/merge_parquets.py
+      hash: md5
+      md5: f16b133d74295380d43eb7c4c1970c98
+      size: 406
+      isexec: true
+    outs:
+    - path: reports/albert_subset_all/predictions_all.parquet
+      hash: md5
+      md5: 389f061b69dd984428b0d39481baff25
+      size: 58594091
+  metrics_partitions:
+    cmd: "python scripts/evaluation/metrics_partitions.py --inputs_dir reports/albert_subset_all
+      --pattern \"*_preds.parquet\" --out_csv reports/albert_subset_all/metrics_partitions.csv\n"
+    deps:
+    - path: reports/albert_subset_all/reviews_0_250_preds.parquet
+      hash: md5
+      md5: cc55a7174b103314984280eea8a0843f
+      size: 32664049
+    - path: reports/albert_subset_all/reviews_1250_end_preds.parquet
+      hash: md5
+      md5: c984701e285ac6e713a2cb278637305a
+      size: 2955176
+    - path: reports/albert_subset_all/reviews_250_500_preds.parquet
+      hash: md5
+      md5: 8dcff5092b5cedcca7a6a39b7f837c79
+      size: 11849462
+    - path: reports/albert_subset_all/reviews_500_750_preds.parquet
+      hash: md5
+      md5: 40fdd7cde3e6dd4544f86a8e9f317b6b
+      size: 6742460
+    - path: reports/albert_subset_all/reviews_750_1250_preds.parquet
+      hash: md5
+      md5: 76619d22fb0de3a5684f4394db6e8a5f
+      size: 6947643
+    - path: scripts/evaluation/metrics_partitions.py
+      hash: md5
+      md5: 1d0d1168d2f6d1c69bb4a9287a04c439
+      size: 1612
+      isexec: true
+    outs:
+    - path: reports/albert_subset_all/metrics_partitions.csv
+      hash: md5
+      md5: af00eed2ce78e93263d97ffbbb8716e7
+      size: 367
+  metrics_overall:
+    cmd: "python scripts/evaluation/metrics_overall.py --preds reports/albert_subset_all/predictions_all.parquet
+      --out_dir reports/albert_subset_all\n"
+    deps:
+    - path: reports/albert_subset_all/predictions_all.parquet
+      hash: md5
+      md5: 389f061b69dd984428b0d39481baff25
+      size: 58594091
+    - path: scripts/evaluation/metrics_overall.py
+      hash: md5
+      md5: 93d5c03fbaf6d189c73b48f62bca622b
+      size: 1560
+      isexec: true
+    outs:
+    - path: reports/albert_subset_all/confusion_all.png
+      hash: md5
+      md5: 357a9c14e562364c71ca842471438ec5
+      size: 28713
+    - path: reports/albert_subset_all/metrics_overall.json
+      hash: md5
+      md5: 358f103f2545202fc16331d5f409df08
+      size: 86

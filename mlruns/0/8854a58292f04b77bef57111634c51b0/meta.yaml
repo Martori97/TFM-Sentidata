@@ -1,0 +1,14 @@
+artifact_uri: file:///home/pedro/MASTER_BIGDATA/TFM/TFM-Sentidata/mlruns/0/8854a58292f04b77bef57111634c51b0/artifacts
+end_time: 1757002938856
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 8854a58292f04b77bef57111634c51b0
+run_name: capable-auk-759
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1757002510973
+status: 3
+tags: []
+user_id: pedro
