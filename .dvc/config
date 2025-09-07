@@ -1,2 +1,6 @@
 [core]
     autostage = true
+    remote = modelstore
+['remote "modelstore"']
+    url = gdrive://<PON_AQUI_EL_ID_DE_LA_CARPETA_DE_DRIVE>
+    gdrive_use_service_account = false
