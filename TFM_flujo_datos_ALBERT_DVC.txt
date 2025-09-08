@@ -1,0 +1,286 @@
+TFM – Flujo de datos (ALBERT 3 clases) y pipeline DVC
+===========================================================
+
+Autor: Pedro Martori
+Proyecto: TFM-Sentidata
+Descripción: Resumen auto-contenido del flujo de datos y stages DVC para la parte de modelado con ALBERT (3 clases).
+
+-----------------------------------------------------------
+ESQUEMA GENERAL (alto nivel)
+-----------------------------------------------------------
+
+Kaggle raw
+   └─► landing/raw ──► landing/delta ──► trusted_clean
+                               │
+                               └─► (Spark/Delta cleaning + label3)
+                                                    │
+                     ┌────────── train_albert (frozen) ──────────┐
+                     │                                            │
+prepare_test  ──► test.parquet                             modelo/tokenizer
+                     │                                            │
+             eval_albert  ────────────────────────────────────────┘
+                     │
+                 metrics, confusion, preds(test)
+
+infer_sephora (foreach particiones) ──► *_preds.parquet ──► merge ──► predictions_all.parquet
+                                                                │
+                             metrics_partitions.csv  ◄──────────┘
+                             metrics_overall.json + confusion_all.png
+
+
+-----------------------------------------------------------
+DETALLE DE STAGES DVC (Inputs → Proceso → Outputs)
+-----------------------------------------------------------
+
+1) descarga_kaggle_reviews  [FROZEN]
+   • IN: scripts/data_ingestion/descarga_kaggle_reviews.py
+   • PROCESO: descarga datasets RAW de Kaggle (Sephora/Ulta).
+   • OUT: data/landing/sephora/raw, data/landing/ulta/raw
+   • NOTA: stage congelada para no re-descargar.
+
+2) conversion_a_delta  [FROZEN]
+   • IN: data/landing/*/raw
+   • PROCESO: conversión/normalización a Delta/Parquet.
+   • OUT: data/landing/sephora/delta, data/landing/ulta/delta
+
+3) trusted_cleaning
+   • IN: data/landing/*/delta
+   • PROCESO (Spark + Delta):
+       – Filtra textos nulos o muy cortos.
+       – Convierte "rating" a entero y descarta nulos.
+       – Crea label3 (1–2→0 neg, 3→1 neu, 4–5→2 pos).
+       – Genera review_id si no existe.
+       – Particiona por tamaño: reviews_0_250, …, reviews_1250_end.
+   • OUT: data/trusted/sephora_clean/* (+ ulta_clean)
+
+4) train_albert_subset_0_250  [FROZEN]
+   • IN: data/trusted/sephora_clean/reviews_0_250, params.yaml, scripts/training/train_albert.py
+   • PROCESO (HF Transformers + PyTorch):
+       – Split 85/15 estratificado por label3 (seed en params).
+       – Tokenización (max_len), DataCollator, class weights.
+       – Entrenamiento (reanudable por checkpoint).
+       – Evaluación en validación y confusion.png (val).
+   • OUT (DVC-tracked dir): models/albert_subset_0_250/
+       · model.safetensors, tokenizer.*, metrics.json (val), confusion.png, checkpoints/*
+   • NOTA: al estar frozen, no re-entrena salvo que se fuerce.
+
+5) prepare_test_albert_subset_0_250
+   • IN: data/trusted/sephora_clean/reviews_0_250
+   • PROCESO: genera TEST hold-out determinista (15%, --seed 42).
+   • OUT: reports/albert_subset_0_250/test.parquet
+   • MOTIVO: eval rápida y reproducible sin Spark.
+
+6) eval_albert_subset_0_250
+   • IN: models/albert_subset_0_250, reports/albert_subset_0_250/test.parquet
+   • PROCESO: carga el modelo entrenado, infiere en test y calcula métricas.
+   • OUT:
+       – reports/albert_subset_0_250/metrics.json (ACC, F1-macro, F1 por clase)
+       – reports/albert_subset_0_250/confusion.png (test)
+       – reports/albert_subset_0_250/predictions.parquet (probs + preds)
+
+7) infer_sephora  (foreach por particiones)
+   • IN: models/albert_subset_0_250, data/trusted/sephora_clean/{reviews_*}
+   • PROCESO: inferencia masiva batch en GPU/CPU sin reentrenar.
+   • OUT (uno por partición):
+       – reports/albert_subset_all/reviews_*_preds.parquet
+         · columnas: id, pred_index(0/1/2), pred_label, p_neg, p_neu, p_pos, true_label (si rating/label3 existe)
+
+8) merge_infer_sephora
+   • IN: todos los *_preds.parquet
+   • PROCESO: concatena todas las particiones.
+   • OUT: reports/albert_subset_all/predictions_all.parquet
+
+9) metrics_partitions
+   • IN: reports/albert_subset_all/*_preds.parquet
+   • PROCESO: ACC y F1-macro por partición (si hay true_label).
+   • OUT: reports/albert_subset_all/metrics_partitions.csv
+
+10) metrics_overall
+   • IN: reports/albert_subset_all/predictions_all.parquet
+   • PROCESO: métricas globales + matriz de confusión.
+   • OUT:
+       – reports/albert_subset_all/metrics_overall.json
+       – reports/albert_subset_all/confusion_all.png
+
+-----------------------------------------------------------
+DETALLES CLAVE (para la memoria)
+-----------------------------------------------------------
+
+• Etiquetado 3 clases (label3):
+  – rating 1–2 → 0 (neg), rating 3 → 1 (neu), rating 4–5 → 2 (pos).
+  – Consistente en cleaning, training, test e inferencias.
+
+• Reproducibilidad:
+  – DVC versiona código + datos derivados.
+  – Stages de ingest y training congeladas (frozen).
+  – Test hold-out fijo con seed=42.
+  – Outputs separados: models/… (pesos) vs reports/… (preds/métricas).
+
+• No fuga de datos:
+  – El test se define fuera del script de entrenamiento y queda fijado como Parquet.
+
+• Generalización:
+  – Hold-out (eval_albert_*): métricas y confusión en test.
+  – Intra-dominio (infer + metrics_*): rendimiento por particiones y global.
+
+• Dispositivo (GPU/CPU):
+  – Scripts usan CUDA si está disponible; si no, CPU.
+  – Control rápido: CUDA_VISIBLE_DEVICES=0 (GPU) o vacío (CPU).
+
+• Esquema típico de columnas en outputs de inferencia:
+  – id, pred_index (0/1/2), pred_label (si id2label), p_neg, p_neu, p_pos, true_label (opcional).
+
+-----------------------------------------------------------
+COMANDOS TÍPICOS (reproducción parcial o completa)
+-----------------------------------------------------------
+
+# (frozen) ingest + delta + clean + train
+dvc repro train_albert_subset_0_250
+
+# test fijo + evaluación hold-out
+dvc repro prepare_test_albert_subset_0_250
+dvc repro eval_albert_subset_0_250
+
+# inferencias masivas por particiones
+dvc repro infer_sephora
+# o una sola partición:
+dvc repro -f infer_sephora@reviews_0_250
+
+# merge + métricas
+dvc repro merge_infer_sephora
+dvc repro metrics_partitions
+dvc repro metrics_overall
+
+-----------------------------------------------------------
+NOTAS FINALES
+-----------------------------------------------------------
+• El pipeline actual evita re-entrenar: el stage de training está frozen.
+• Si cambias hyperparámetros o scripts clave, DVC detecta diferencias y reproduce lo necesario.
+• Los archivos grandes (modelos, preds) se versionan con DVC (no con Git).
+• Para la entrega del TFM, incluye: metrics.json y confusion.png (test), metrics_partitions.csv, metrics_overall.json, confusion_all.png, predictions_all.parquet, y el dvc.yaml/dvc.lock.
+
+ESQUEMA DE ARVHIVOS
+
+(venv) pedro@PVS:~/MASTER_BIGDATA/TFM/TFM-Sentidata$ tree -L 4
+.
+├── README.md
+├── data
+│   ├── exploitation
+│   │   ├── analisis_final
+│   │   ├── dashboards_data
+│   │   ├── modelos_input
+│   │   └── products
+│   ├── landing
+│   │   ├── sephora
+│   │   │   ├── delta
+│   │   │   └── raw
+│   │   └── ulta
+│   │       ├── delta
+│   │       └── raw
+│   └── trusted
+│       ├── sephora_clean
+│       │   ├── product_info
+│       │   ├── reviews_0_250
+│       │   ├── reviews_1250_end
+│       │   ├── reviews_250_500
+│       │   ├── reviews_500_750
+│       │   └── reviews_750_1250
+│       └── ulta_clean
+│           └── Ulta Skincare Reviews
+├── dvc.lock
+├── dvc.yaml
+├── mlruns
+│   └── 0
+│       ├── 8854a58292f04b77bef57111634c51b0
+│       │   ├── artifacts
+│       │   ├── meta.yaml
+│       │   ├── metrics
+│       │   ├── params
+│       │   └── tags
+│       └── meta.yaml
+├── models
+│   ├── albert_subset
+│   ├── albert_subset_0_250
+│   │   ├── checkpoint-11967
+│   │   │   ├── config.json
+│   │   │   ├── model.safetensors
+│   │   │   ├── optimizer.pt
+│   │   │   ├── rng_state.pth
+│   │   │   ├── scheduler.pt
+│   │   │   ├── special_tokens_map.json
+│   │   │   ├── spiece.model
+│   │   │   ├── tokenizer.json
+│   │   │   ├── tokenizer_config.json
+│   │   │   ├── trainer_state.json
+│   │   │   └── training_args.bin
+│   │   ├── checkpoint-6000
+│   │   │   ├── config.json
+│   │   │   ├── model.safetensors
+│   │   │   ├── optimizer.pt
+│   │   │   ├── rng_state.pth
+│   │   │   ├── scheduler.pt
+│   │   │   ├── special_tokens_map.json
+│   │   │   ├── spiece.model
+│   │   │   ├── tokenizer.json
+│   │   │   ├── tokenizer_config.json
+│   │   │   ├── trainer_state.json
+│   │   │   └── training_args.bin
+│   │   ├── config.json
+│   │   ├── confusion.png
+│   │   ├── metrics.json
+│   │   ├── model.safetensors
+│   │   ├── special_tokens_map.json
+│   │   ├── spiece.model
+│   │   ├── tokenizer.json
+│   │   ├── tokenizer_config.json
+│   │   └── training_args.bin
+│   ├── mlflow_runs
+│   │   └── 0
+│   │       └── meta.yaml
+│   └── model_lr_price.pkl
+├── notebooks
+├── params.yaml
+├── reports
+│   ├── albert_subset_0_250
+│   │   ├── confusion.png
+│   │   ├── metrics.json
+│   │   ├── predictions.parquet
+│   │   └── test.parquet
+│   ├── albert_subset_all
+│   │   ├── confusion_all.png
+│   │   ├── metrics_overall.json
+│   │   ├── metrics_partitions.csv
+│   │   ├── predictions_all.parquet
+│   │   ├── reviews_0_250_preds.parquet
+│   │   ├── reviews_1250_end_preds.parquet
+│   │   ├── reviews_250_500_preds.parquet
+│   │   ├── reviews_500_750_preds.parquet
+│   │   └── reviews_750_1250_preds.parquet
+│   └── figures
+├── requirements.txt
+├── scripts
+│   ├── data_cleaning
+│   │   ├── conversion_a_delta.py
+│   │   ├── trusted_clean_driver.py
+│   │   └── trusted_clean_single.py
+│   ├── data_ingestion
+│   │   └── descarga_kaggle_reviews.py
+│   ├── data_integration
+│   ├── evaluation
+│   │   ├── merge_parquets.py
+│   │   ├── metrics_overall.py
+│   │   └── metrics_partitions.py
+│   ├── main.py
+│   ├── setup
+│   │   ├── dvc_run.sh
+│   │   └── verificar_dvc.sh
+│   ├── training
+│   │   ├── check_parquet_columns2.py
+│   │   ├── conteo.py
+│   │   ├── evaluate_albert.py
+│   │   ├── infer_albert_all.py
+│   │   ├── prepare_test_parquet.py
+│   │   └── train_albert.py
+│   └── visualization
+├── tests
+└── tmp_trainer
