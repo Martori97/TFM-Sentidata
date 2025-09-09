@@ -1,7 +1,7 @@
 TFM – Flujo de datos (ALBERT 3 clases) y pipeline DVC
 ===========================================================
 
-Autor: Pedro Martori
+Autor: Pedro 
 Proyecto: TFM-Sentidata
 Descripción: Resumen auto-contenido del flujo de datos y stages DVC para la parte de modelado con ALBERT (3 clases).
 
