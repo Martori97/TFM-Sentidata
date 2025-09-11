@@ -29,9 +29,10 @@ os.makedirs(a.out_dir, exist_ok=True)
 with open(os.path.join(a.out_dir, "metrics_overall.json"), "w") as f:
     json.dump(metrics, f, indent=2)
 
-# Matriz de confusión (sin seaborn)
+# ---------- Matriz de confusión (absoluta) ----------
 labels = [0, 1, 2]
 cm = confusion_matrix(y, yhat, labels=labels)
+
 plt.figure(figsize=(5.2, 4.6))
 plt.imshow(cm, interpolation="nearest")
 plt.xticks(range(3), ["neg", "neu", "pos"])
@@ -44,6 +45,26 @@ plt.xlabel("Predicted")
 plt.ylabel("True")
 plt.tight_layout()
 plt.savefig(os.path.join(a.out_dir, "confusion_all.png"), dpi=140)
+plt.close()
+
+# ---------- Matriz de confusión normalizada por fila (%) ----------
+cm = cm.astype(float)
+row = cm.sum(axis=1, keepdims=True)
+row[row == 0] = 1.0  # evita división por cero
+cmn = (cm / row) * 100.0
+
+plt.figure(figsize=(5.2, 4.6))
+plt.imshow(cmn, interpolation="nearest")
+plt.xticks(range(3), ["neg", "neu", "pos"])
+plt.yticks(range(3), ["neg", "neu", "pos"])
+for i in range(3):
+    for j in range(3):
+        plt.text(j, i, f"{cmn[i, j]:.1f}%", ha="center", va="center")
+plt.title("Confusion Matrix (all, % row)")
+plt.xlabel("Predicted")
+plt.ylabel("True")
+plt.tight_layout()
+plt.savefig(os.path.join(a.out_dir, "confusion_all_norm.png"), dpi=140)
 plt.close()
 
 print("✅ overall ->", metrics)

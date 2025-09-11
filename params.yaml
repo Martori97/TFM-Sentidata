@@ -1,3 +1,17 @@
+eda:
+  data_path: ../data/trusted/sephora_clean/reviews_0_250
+  text_column: review_text
+  star_column: rating
+  label_column: null
+  star_to_label:
+    1: NEG
+    2: NEG
+    3: NEU
+    4: POS
+    5: POS
+  hf_model_name: albert-base-v2
+
+
 model:
   albert:
     # --- base ---
@@ -5,9 +19,9 @@ model:
     num_labels: 3
 
     # --- velocidad vs memoria ---
-    max_len: 128
+    max_len: 192
     batch: 128             # SUBIMOS batch size para aprovechar la GPU
-    epochs: 3
+    epochs: 5
     lr: 2e-5
     weight_decay: 0.01
     seed: 42
@@ -52,3 +66,10 @@ model:
 
 inference:
   batch: 256    # subimos también el batch en inferencia
+
+zero_shot:
+  model_name: joeddav/xlm-roberta-large-xnli   # multilingüe y estable
+  batch_size: 16                                # súbelo si tienes buena GPU
+  sample_size: 2000                             # pon null para todo el dataset
+  label_set: ["positivo", "neutro", "negativo"] # orden importa
+  map_to_internal: {"positivo":"POS","neutro":"NEU","negativo":"NEG"}  # mapeo a tus etiquetas
