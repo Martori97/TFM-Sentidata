@@ -1,84 +1,105 @@
-# scripts/main.py
+# -*- coding: utf-8 -*-
 """
-Pipeline principal de data_cleaning del TFM.
+MAIN ORQUESTADOR TFM-Sentidata
 
-Orden:
-0) Asegurar dependencias (pip install -r requirements.txt)
-1) Descarga Kaggle -> data/landing/*/raw           (saltable con SKIP_KAGGLE=1)
-2) CSV -> Delta     -> data/landing/*/delta
-3) Limpieza trusted -> data/trusted/*_clean
-4) Dataset base     -> data/exploitation/modelos_input
+Flujo:
+  1) Conversión CSV -> (Sephora: DELTA) | (Ulta: PARQUET)
+  2) Limpieza TRUSTED (solo Sephora)
+  3) Generación base de modelos (Delta canónico + Parquet y CSV deduplicados)
+  4) (Opcional) Reporte HERA -> activar con RUN_HERA=1
+
+Ejecución:
+    python scripts/main.py
+
+Opciones por variables de entorno:
+    RUN_HERA=1            -> ejecuta el reporte HERA al final (por defecto 0)
+    HALT_ON_FAIL=0        -> si pones 0, continúa aunque falle una etapa (por defecto 1)
 """
 
 import os
-import subprocess
 import sys
-from pathlib import Path
-from shutil import which
+import time
+import subprocess
+from datetime import datetime
 
-ROOT = Path(__file__).resolve().parents[1]
-REQ_FILE = ROOT / "requirements.txt"
+# --------- Config ----------
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+PYTHON = sys.executable  # respeta el venv actual
+RUN_HERA = os.environ.get("RUN_HERA", "0") == "1"
+HALT_ON_FAIL = os.environ.get("HALT_ON_FAIL", "1") != "0"
 
-# Tareas del pipeline
 STEPS = [
-    ("Descarga Kaggle", "scripts/data_ingestion/descarga_kaggle_reviews.py"),
-    ("Conversión a Delta", "scripts/data_cleaning/conversion_a_delta.py"),
-    ("Limpieza trusted", "scripts/data_cleaning/trusted_clean_driver.py"),
-    ("Dataset base", "scripts/data_cleaning/filtrar_reviews_base.py"),
+    {
+        "title": "1) CSV -> (Sephora: DELTA) | (Ulta: PARQUET)",
+        "cmd": [PYTHON, "scripts/data_cleaning/conversion_a_delta.py"],
+    },
+    {
+        "title": "2) Limpieza TRUSTED (solo Sephora)",
+        "cmd": [PYTHON, "scripts/data_cleaning/trusted_clean_driver.py"],
+    },
+    {
+        "title": "3) Base modelos (Delta canónico + Parquet/CSV deduplicados)",
+        "cmd": [PYTHON, "scripts/data_cleaning/filtrar_reviews_base.py"],
+    },
 ]
 
-def run_cmd(cmd, title=None):
-    title = title or " ".join(cmd)
-    print(f"\n=== {title} ===")
-    result = subprocess.run(cmd, text=True, capture_output=True)
-    if result.returncode != 0:
-        print(result.stdout)
-        print(result.stderr)
-        raise SystemExit(f"ERROR en: {title}")
-    if result.stdout.strip():
-        print(result.stdout)
+HERA_STEP = {
+    "title": "4) Reporte HERA (opcional)",
+    "cmd": [PYTHON, "scripts/data_cleaning/hera.py"],
+}
 
-def ensure_requirements():
-    if not REQ_FILE.exists():
-        print(f"Aviso: no existe {REQ_FILE}, se omite instalación de dependencias.")
-        return
-    # Instala/actualiza dependencias del proyecto en el entorno actual
-    run_cmd([sys.executable, "-m", "pip", "install", "-r", str(REQ_FILE)], title="Instalando dependencias (requirements.txt)")
 
-def check_java():
-    java_bin = which("java")
-    if not java_bin:
-        print("ADVERTENCIA: No se ha encontrado 'java' en PATH. Spark requiere JDK 11/17.")
-        print("Instala Java y define JAVA_HOME antes de ejecutar etapas de Spark/Delta.\n")
-    else:
-        print(f"Java detectado: {java_bin}")
+# --------- Helpers ----------
+def banner(text):
+    print("=" * 80)
+    print(text)
+    print("=" * 80)
 
-def find_script(rel_path: str) -> Path:
-    p = ROOT / rel_path
-    if p.exists():
-        return p
-    # Fallback: buscar por nombre dentro de scripts/
-    name = Path(rel_path).name
-    for cand in (ROOT / "scripts").rglob(name):
-        if cand.is_file():
-            return cand
-    raise FileNotFoundError(f"No se encontró {rel_path} ni {name} dentro de scripts/")
 
-def run_step(title: str, rel_path: str):
-    # Opción para saltar Kaggle si no hay credenciales o se desea omitir
-    if title.lower().startswith("descarga kaggle") and os.getenv("SKIP_KAGGLE", "0") == "1":
-        print("Saltando 'Descarga Kaggle' por SKIP_KAGGLE=1")
-        return
-    script_path = find_script(rel_path)
-    run_cmd([sys.executable, str(script_path)], title=f"{title}: {script_path}")
+def run_step(title, cmd, cwd):
+    banner(title)
+    print(">>>", " ".join(cmd))
+    start = time.perf_counter()
+    try:
+        # heredamos el entorno actual (venv, etc.)
+        subprocess.run(cmd, cwd=cwd, check=True)
+        secs = time.perf_counter() - start
+        print(f"[OK] {title} en {secs:0.1f}s\n")
+        return True
+    except subprocess.CalledProcessError as e:
+        secs = time.perf_counter() - start
+        print(f"[ERROR] {title} falló tras {secs:0.1f}s (returncode={e.returncode})\n")
+        if HALT_ON_FAIL:
+            sys.exit(e.returncode)
+        return False
+
 
 def main():
-    print("Iniciando pipeline de data_cleaning")
-    ensure_requirements()
-    check_java()
-    for title, rel in STEPS:
-        run_step(title, rel)
-    print("\nPipeline de data_cleaning finalizado correctamente")
+    start_all = time.perf_counter()
+    print()
+    print("TFM-Sentidata :: Orquestación del pipeline")
+    print("Fecha/Hora:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    print("Repo root :", REPO_ROOT)
+    print()
+
+    # 1..3
+    for step in STEPS:
+        run_step(step["title"], step["cmd"], REPO_ROOT)
+
+    # 4 (opcional)
+    if RUN_HERA:
+        run_step(HERA_STEP["title"], HERA_STEP["cmd"], REPO_ROOT)
+    else:
+        print("[INFO] HERA desactivado (RUN_HERA=1 para activarlo)\n")
+
+    total = time.perf_counter() - start_all
+    banner(f"Pipeline COMPLETADO en {total/60.0:0.1f} min")
+    print("Salidas de interés:")
+    print("  - Delta canónico :", "data/exploitation/modelos_input/reviews_base_delta")
+    print("  - Parquet dedup  :", "data/exploitation/modelos_input/reviews_base_parquet")
+    print("  - CSV dedup      :", "data/exploitation/modelos_input/reviews_base_csv")
+    print()
+
 
 if __name__ == "__main__":
     main()

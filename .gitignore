@@ -1,14 +1,18 @@
-# Ignorar modelos y artefactos pesados
-models/*
-*.joblib
-*.bin
-*.pt
-*.h5
-
-# Ignorar datasets locales (los maneja DVC)
-data/*
+# Data pesada
+data/**
 !data/.gitkeep
 
-# Ignorar caches temporales
-.cache/
+# Modelos pesados
+models/**
+!models/.gitkeep
+
+# Cachés Spark
+.metastore_db/
+spark-warehouse/
+derby.log
+
+# Python / general
 __pycache__/
+*.pyc
+.venv/
+.env/

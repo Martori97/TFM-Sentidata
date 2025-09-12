@@ -1,33 +1,28 @@
-import os
-import subprocess
+# -*- coding: utf-8 -*-
+# Recorre Sephora Delta y limpia cada tabla -> Trusted
 
-# Configura datasets y sus rutas
-datasets = {
-    "sephora": "data/landing/sephora/delta",
-    "ulta": "data/landing/ulta/delta"
-}
+import os, subprocess, sys
 
-for dataset, folder in datasets.items():
-    print(f"Lanzando limpieza de: {dataset}")
+SEPH_DELTA = "data/landing/sephora/delta"
+SEPH_TRUST = "data/trusted/sephora_clean"
 
-    for tabla in os.listdir(folder):
-        delta_path = os.path.join(folder, tabla)
-        if not os.path.isdir(delta_path):
+os.makedirs(SEPH_TRUST, exist_ok=True)
+
+def _is_delta_table(path: str) -> bool:
+    return os.path.isdir(path) and os.path.isdir(os.path.join(path, "_delta_log"))
+
+def run():
+    for name in sorted(os.listdir(SEPH_DELTA)):
+        in_path = os.path.join(SEPH_DELTA, name)
+        out_path = os.path.join(SEPH_TRUST, name)  # mismo nombre
+        if not _is_delta_table(in_path):
+            print(f"[SKIP] {in_path} no es tabla Delta válida")
             continue
+        print(f"[RUN] Limpieza Sephora: {name}")
+        subprocess.run(
+            ["python", "scripts/data_cleaning/trusted_clean_single.py", in_path, out_path],
+            check=False,
+        )
 
-        print(f"Procesando tabla: {tabla}")
-
-        comando = [
-            "python",
-            "scripts/data_cleaning/trusted_clean_single.py",
-            dataset,
-            tabla
-        ]
-
-        result = subprocess.run(comando, capture_output=True, text=True)
-
-        if result.returncode == 0:
-            print(f"{tabla} procesada con éxito.")
-        else:
-            print(f"Error procesando {tabla}:\n{result.stderr}")
-
+if __name__ == "__main__":
+    run()
