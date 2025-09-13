@@ -19,7 +19,7 @@ stages:
       size: 1417818
       nfiles: 1
   conversion_a_delta:
-    cmd: python scripts/data_cleaning/conversion_a_delta.py
+    cmd: "python scripts/data_cleaning/conversion_a_delta.py\n"
     deps:
     - path: data/landing/sephora/raw
       hash: md5
@@ -38,12 +38,12 @@ stages:
     outs:
     - path: data/landing/sephora/delta
       hash: md5
-      md5: ed49bb476aeace9e3a2e1bcb870a4d61.dir
+      md5: 8d16549dfde95fe77746134b77ef6141.dir
       size: 230119217
       nfiles: 172
     - path: data/landing/ulta/delta
       hash: md5
-      md5: dec95f528f353235c330baef8efc965a.dir
+      md5: e4298361d6988f7bfb7d25d83aec33bf.dir
       size: 592065
       nfiles: 4
   trusted_cleaning:
@@ -65,17 +65,17 @@ stages:
       size: 838
     - path: scripts/data_cleaning/trusted_clean_single.py
       hash: md5
-      md5: e7cffc86050618e261120472e5fd8400
-      size: 3596
+      md5: e9f9c94752272c42f4c257b369e68e8b
+      size: 4336
     outs:
     - path: data/trusted/sephora_clean
       hash: md5
-      md5: 0739f8232639cf95b85e2c54bc2975b7.dir
-      size: 294488733
-      nfiles: 248
+      md5: 7e0f5f65e5e7771d4c81e1dde7ec76f2.dir
+      size: 500884662
+      nfiles: 250
     - path: data/trusted/ulta_clean
       hash: md5
-      md5: 1d1afb4d7ccf987633f855ca12beb8b0.dir
+      md5: a897013e51612cfaffed8971012ec99f.dir
       size: 605345
       nfiles: 4
   train_albert_subset_0_250:
@@ -108,8 +108,8 @@ stages:
     deps:
     - path: data/trusted/sephora_clean/reviews_0_250
       hash: md5
-      md5: b79eb973a0297c11d8807d09c51efb23.dir
-      size: 156583273
+      md5: d8c55ecba6341e0d645400fcb1727d97.dir
+      size: 267928038
       nfiles: 48
     - path: scripts/training/prepare_test_parquet.py
       hash: md5
@@ -118,8 +118,8 @@ stages:
     outs:
     - path: reports/albert_subset_0_250/test.parquet
       hash: md5
-      md5: 0bd888cdc55fb97ff85845772e71a408
-      size: 23693777
+      md5: 18eb8602eacf9a2995a46e44639804d1
+      size: 40337964
   eval_albert_subset_0_250:
     cmd: "python scripts/training/evaluate_albert.py --model_dir models/albert_subset_0_250
       --test_parquet reports/albert_subset_0_250/test.parquet --output_dir reports/albert_subset_0_250
@@ -364,3 +364,297 @@ stages:
       hash: md5
       md5: 358f103f2545202fc16331d5f409df08
       size: 86
+  ingest_kaggle:
+    cmd: "python scripts/data_ingestion/descarga_kaggle_reviews.py\n"
+    deps:
+    - path: scripts/data_ingestion/descarga_kaggle_reviews.py
+      hash: md5
+      md5: e27b06cc672ef4f0b2347bf61ccb6322
+      size: 762
+    outs:
+    - path: data/landing/sephora/raw
+      hash: md5
+      md5: 8b7019941c39ea0d57fae739d69994b5.dir
+      size: 528949733
+      nfiles: 6
+    - path: data/landing/ulta/raw
+      hash: md5
+      md5: 4801b579aff96d61657360644b9bd6ad.dir
+      size: 1417818
+      nfiles: 1
+  trusted_clean_driver:
+    cmd: "python scripts/data_cleaning/trusted_clean_driver.py sephora reviews\n"
+    deps:
+    - path: data/landing/sephora/delta
+      hash: md5
+      md5: 8d16549dfde95fe77746134b77ef6141.dir
+      size: 230119217
+      nfiles: 172
+    - path: scripts/data_cleaning/trusted_clean_driver.py
+      hash: md5
+      md5: a3e2446b4dff6056698cb1cf625de1e1
+      size: 838
+    - path: scripts/data_cleaning/trusted_clean_single.py
+      hash: md5
+      md5: e9f9c94752272c42f4c257b369e68e8b
+      size: 4336
+    outs:
+    - path: data/trusted/sephora_clean/product_info
+      hash: md5
+      md5: a56199873d9480e72793b83ba9f30b77.dir
+      size: 2837914
+      nfiles: 10
+    - path: data/trusted/sephora_clean/reviews_0_250
+      hash: md5
+      md5: 83206a4ddd6715cf9df4ff00ab33ec05.dir
+      size: 267928038
+      nfiles: 48
+    - path: data/trusted/sephora_clean/reviews_1250_end
+      hash: md5
+      md5: b66d12310afa7dddcc889df69e6fe54b.dir
+      size: 24234532
+      nfiles: 48
+    - path: data/trusted/sephora_clean/reviews_250_500
+      hash: md5
+      md5: e39aebbeb49ba992ce972dc9a3795232.dir
+      size: 95799300
+      nfiles: 48
+    - path: data/trusted/sephora_clean/reviews_500_750
+      hash: md5
+      md5: 0c8ff2906b4b55d6a378145131da930c.dir
+      size: 54040580
+      nfiles: 48
+    - path: data/trusted/sephora_clean/reviews_750_1250
+      hash: md5
+      md5: eb4ac54c9c13430f68259f2a41eefd50.dir
+      size: 56044298
+      nfiles: 48
+  merge_trusted_reviews:
+    cmd: "python scripts/data_cleaning/merge_trusted_reviews.py\n"
+    deps:
+    - path: data/trusted/sephora_clean/reviews_0_250
+      hash: md5
+      md5: 83206a4ddd6715cf9df4ff00ab33ec05.dir
+      size: 267928038
+      nfiles: 48
+    - path: data/trusted/sephora_clean/reviews_1250_end
+      hash: md5
+      md5: b66d12310afa7dddcc889df69e6fe54b.dir
+      size: 24234532
+      nfiles: 48
+    - path: data/trusted/sephora_clean/reviews_250_500
+      hash: md5
+      md5: e39aebbeb49ba992ce972dc9a3795232.dir
+      size: 95799300
+      nfiles: 48
+    - path: data/trusted/sephora_clean/reviews_500_750
+      hash: md5
+      md5: 0c8ff2906b4b55d6a378145131da930c.dir
+      size: 54040580
+      nfiles: 48
+    - path: data/trusted/sephora_clean/reviews_750_1250
+      hash: md5
+      md5: eb4ac54c9c13430f68259f2a41eefd50.dir
+      size: 56044298
+      nfiles: 48
+    - path: scripts/data_cleaning/merge_trusted_reviews.py
+      hash: md5
+      md5: 82aef103b1cca197c04b46901d848a6b
+      size: 1521
+    outs:
+    - path: data/trusted/sephora_clean/reviews_full
+      hash: md5
+      md5: 73d20db9be64e22082e17e0e697a4e06.dir
+      size: 493840996
+      nfiles: 18
+  eda_full:
+    cmd: "python scripts/EDA/eda_reviews.py --input data/trusted/sephora_clean/reviews_full
+      --outdir reports/eda/full --tokenizer albert-base-v2\n"
+    deps:
+    - path: data/trusted/sephora_clean/reviews_full
+      hash: md5
+      md5: 73d20db9be64e22082e17e0e697a4e06.dir
+      size: 493840996
+      nfiles: 18
+    - path: scripts/EDA/eda_reviews.py
+      hash: md5
+      md5: 6235ecad747eb664623c25c539bb2a67
+      size: 10430
+    outs:
+    - path: reports/eda/full/dist_category.csv
+      hash: md5
+      md5: 8bb354794ad0ecbdc4e66ecfa4cf467e
+      size: 23
+    - path: reports/eda/full/dist_sentiment.csv
+      hash: md5
+      md5: 109087a93a1432edf2198df2821c2c78
+      size: 88
+    - path: reports/eda/full/figs
+      hash: md5
+      md5: 6c73e2254019b2302b0f6328be6203e0.dir
+      size: 87142
+      nfiles: 4
+    - path: reports/eda/full/len_stats.json
+      hash: md5
+      md5: fc232319392e16d0d39082fe1d5e6aea
+      size: 171
+    - path: reports/eda/full/summary.json
+      hash: md5
+      md5: 0d37b42447f4aeb4bd8a713ee1d667ff
+      size: 538
+    - path: reports/eda/full/token_stats.json
+      hash: md5
+      md5: ebcfb68180768de6a506e950a51b61cb
+      size: 326
+    - path: reports/eda/full/tokens_hist.csv
+      hash: md5
+      md5: 1f2e21459006768e0887aa4a8df34660
+      size: 2872
+  sample_reviews:
+    cmd: "python scripts/data_cleaning/sample_reviews.py --input data/trusted/sephora_clean/reviews_full
+      --output data/trusted/sephora_clean/reviews_sample_30pct --frac 0.30 --by sentiment_category
+      --seed 42\n"
+    deps:
+    - path: data/trusted/sephora_clean/reviews_full
+      hash: md5
+      md5: 73d20db9be64e22082e17e0e697a4e06.dir
+      size: 493840996
+      nfiles: 18
+    - path: scripts/data_cleaning/sample_reviews.py
+      hash: md5
+      md5: 762c5eb083b940743a3198d3763e920e
+      size: 2406
+    outs:
+    - path: data/trusted/sephora_clean/reviews_sample_30pct
+      hash: md5
+      md5: 7f79f0927f3a3f27924ba16646d0b2e9.dir
+      size: 149125846
+      nfiles: 18
+  eda_sample:
+    cmd: "python scripts/EDA/eda_reviews.py --input data/trusted/sephora_clean/reviews_sample_30pct
+      --outdir reports/eda/sample_30pct --tokenizer albert-base-v2\n"
+    deps:
+    - path: data/trusted/sephora_clean/reviews_sample_30pct
+      hash: md5
+      md5: 7f79f0927f3a3f27924ba16646d0b2e9.dir
+      size: 149125846
+      nfiles: 18
+    - path: scripts/EDA/eda_reviews.py
+      hash: md5
+      md5: 6235ecad747eb664623c25c539bb2a67
+      size: 10430
+    outs:
+    - path: reports/eda/sample_30pct/dist_category.csv
+      hash: md5
+      md5: 8bb354794ad0ecbdc4e66ecfa4cf467e
+      size: 23
+    - path: reports/eda/sample_30pct/dist_sentiment.csv
+      hash: md5
+      md5: 915c26054768143b937a9e81b74985a0
+      size: 90
+    - path: reports/eda/sample_30pct/figs
+      hash: md5
+      md5: 85a47d335a2875f55082e53f4e90cd23.dir
+      size: 87295
+      nfiles: 4
+    - path: reports/eda/sample_30pct/len_stats.json
+      hash: md5
+      md5: 1029fba5d6d1b6c80fd7fdee795207c2
+      size: 171
+    - path: reports/eda/sample_30pct/summary.json
+      hash: md5
+      md5: db4fb12004334391799e3c11f9300773
+      size: 560
+    - path: reports/eda/sample_30pct/token_stats.json
+      hash: md5
+      md5: de343a06b37c7000fbc048c4d4f70d54
+      size: 326
+    - path: reports/eda/sample_30pct/tokens_hist.csv
+      hash: md5
+      md5: 5a2d4aff42fb130500e6d1fea52cf14d
+      size: 2694
+  eda_compare_full_vs_sample_30pct:
+    cmd: "python scripts/EDA/eda_compare.py --full reports/eda/full --sample reports/eda/sample_30pct
+      --outdir reports/eda/compare_full_vs_sample_30pct\n"
+    deps:
+    - path: reports/eda/full/dist_category.csv
+      hash: md5
+      md5: 8bb354794ad0ecbdc4e66ecfa4cf467e
+      size: 23
+    - path: reports/eda/full/dist_sentiment.csv
+      hash: md5
+      md5: 109087a93a1432edf2198df2821c2c78
+      size: 88
+    - path: reports/eda/full/len_stats.json
+      hash: md5
+      md5: fc232319392e16d0d39082fe1d5e6aea
+      size: 171
+    - path: reports/eda/full/summary.json
+      hash: md5
+      md5: 0d37b42447f4aeb4bd8a713ee1d667ff
+      size: 538
+    - path: reports/eda/full/token_stats.json
+      hash: md5
+      md5: ebcfb68180768de6a506e950a51b61cb
+      size: 326
+    - path: reports/eda/full/tokens_hist.csv
+      hash: md5
+      md5: 1f2e21459006768e0887aa4a8df34660
+      size: 2872
+    - path: reports/eda/sample_30pct/dist_category.csv
+      hash: md5
+      md5: 8bb354794ad0ecbdc4e66ecfa4cf467e
+      size: 23
+    - path: reports/eda/sample_30pct/dist_sentiment.csv
+      hash: md5
+      md5: 915c26054768143b937a9e81b74985a0
+      size: 90
+    - path: reports/eda/sample_30pct/len_stats.json
+      hash: md5
+      md5: 1029fba5d6d1b6c80fd7fdee795207c2
+      size: 171
+    - path: reports/eda/sample_30pct/summary.json
+      hash: md5
+      md5: db4fb12004334391799e3c11f9300773
+      size: 560
+    - path: reports/eda/sample_30pct/token_stats.json
+      hash: md5
+      md5: de343a06b37c7000fbc048c4d4f70d54
+      size: 326
+    - path: reports/eda/sample_30pct/tokens_hist.csv
+      hash: md5
+      md5: 5a2d4aff42fb130500e6d1fea52cf14d
+      size: 2694
+    - path: scripts/EDA/eda_compare.py
+      hash: md5
+      md5: ccbfd0ac430439ce9b8480693f4f6702
+      size: 6597
+    outs:
+    - path: reports/eda/compare_full_vs_sample_30pct/chi2_sentiment.json
+      hash: md5
+      md5: 3ffce17cd2118d200175a2fdfa4449b5
+      size: 81
+    - path: reports/eda/compare_full_vs_sample_30pct/chi2_tokens.json
+      hash: md5
+      md5: 3b44de9e072c21e6cf087f5e0d1f22b7
+      size: 55
+    - path: reports/eda/compare_full_vs_sample_30pct/diff_category.csv
+      hash: md5
+      md5: 3e4f3de5b5716ca1d06dece687d4678e
+      size: 48
+    - path: reports/eda/compare_full_vs_sample_30pct/diff_len.json
+      hash: md5
+      md5: a9d834a0551fdcec09298b386fab9414
+      size: 96
+    - path: reports/eda/compare_full_vs_sample_30pct/diff_sentiment.csv
+      hash: md5
+      md5: b6d0f15bdcbc719869cada5bb3277547
+      size: 232
+    - path: reports/eda/compare_full_vs_sample_30pct/diff_tokens.json
+      hash: md5
+      md5: dfd0a101a65b59ae6c940c4b9298a81c
+      size: 193
+    - path: reports/eda/compare_full_vs_sample_30pct/tokens_hist_merged.csv
+      hash: md5
+      md5: 303d26f8f68f9436df2650a8d3a82bb6
+      size: 6359
