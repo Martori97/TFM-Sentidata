@@ -20,3 +20,4 @@ notebooks/*_out.ipynb
 
 # Ignore Windows ADS leftovers
 *:Zone.Identifier
+reports/eda/compare_full_vs_sample_30pct
