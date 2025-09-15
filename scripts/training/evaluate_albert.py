@@ -1,18 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Evalúa un modelo ALBERT ya entrenado y registra resultados en MLflow (opcional).
 
-Uso:
-  python scripts/training/evaluate_albert.py \
-    --model_dir models/albert_subset_0_250 \
-    --test_parquet reports/albert_subset_0_250/test.parquet \
-    --max_len 128 \
-    --output_dir reports/albert_subset_0_250 \
-    --mlflow true \
-    --experiment "Sentidata" \
-    --run_name "ALBERT_eval_subset_0_250_len128"
-"""
 import os, sys, json, argparse
 from typing import List, Dict
 import numpy as np

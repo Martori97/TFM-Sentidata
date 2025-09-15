@@ -23,7 +23,7 @@ model:
     save_total_limit: 2
     patience: 2
     load_best_model_at_end: true
-    text_col: review_text
+    text_col: review_text_clean
     label_col: label3           # si no existe, se deriva desde rating
     rating_col: rating
     dataloader_num_workers: 8

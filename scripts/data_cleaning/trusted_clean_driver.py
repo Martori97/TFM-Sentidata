@@ -4,8 +4,7 @@ import subprocess
 # Configura datasets y sus rutas
 datasets = {
     "sephora": "data/landing/sephora/delta",
-    "ulta": "data/landing/ulta/delta"
-}
+    }
 
 for dataset, folder in datasets.items():
     print(f"Lanzando limpieza de: {dataset}")

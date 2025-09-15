@@ -108,7 +108,6 @@ stages:
       /home/pedro/MASTER_BIGDATA/venv/bin/python scripts/training/evaluate_albert.py
       --model_dir models/albert_sample_30pct
       --test_parquet data/exploitation/modelos_input/sample_tvt/test
-      --max_len 176
       --output_dir reports/albert_sample_30pct/eval
     deps:
       - scripts/training/evaluate_albert.py
