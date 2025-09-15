@@ -1,18 +1,34 @@
-# Data pesada
+# === DATA & MODELS (se versionan con DVC, no en Git) ===
 data/**
 !data/.gitkeep
 
-# Modelos pesados
 models/**
 !models/.gitkeep
 
-# Cachés Spark
-.metastore_db/
+# DVC cache y temporales (mantén .dvc/ salvo cache/tmp)
+.dvc/cache/
+.dvc/tmp/
+
+# Spark / Hive locales
 spark-warehouse/
+.metastore_db/
 derby.log
 
-# Python / general
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .venv/
-.env/
+venv/
+.env
+*.egg-info/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# SO / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
