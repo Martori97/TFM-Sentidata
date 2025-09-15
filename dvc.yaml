@@ -1,149 +1,138 @@
 stages:
-  descarga_kaggle_reviews:
-    cmd: python scripts/data_ingestion/descarga_kaggle_reviews.py
+
+  ingest_kaggle:
+    cmd: python scripts/data_ingestion/descarga_kaggle_reviews.py --out data/landing/sephora/raw
     deps:
       - scripts/data_ingestion/descarga_kaggle_reviews.py
     outs:
       - data/landing/sephora/raw
-      - data/landing/ulta/raw
-    frozen: true
 
   conversion_a_delta:
-    cmd: python scripts/data_cleaning/conversion_a_delta.py
+    cmd: python scripts/data_cleaning/conversion_a_delta.py --input data/landing/sephora/raw --output data/landing/sephora/delta
     deps:
-      - data/landing/sephora/raw
-      - data/landing/ulta/raw
       - scripts/data_cleaning/conversion_a_delta.py
+      - data/landing/sephora/raw
     outs:
       - data/landing/sephora/delta
-      - data/landing/ulta/delta
-    frozen: true
 
-  trusted_cleaning:
-    cmd: python scripts/data_cleaning/trusted_clean_driver.py
+  trusted_clean_driver:
+    cmd: python scripts/data_cleaning/trusted_clean_driver.py --input data/landing/sephora/delta --output data/trusted/sephora_clean
     deps:
-      - data/landing/sephora/delta
-      - data/landing/ulta/delta
       - scripts/data_cleaning/trusted_clean_driver.py
       - scripts/data_cleaning/trusted_clean_single.py
+      - data/landing/sephora/delta
     outs:
       - data/trusted/sephora_clean
-      - data/trusted/ulta_clean
-    frozen: true
 
-  train_albert_subset_0_250:
-    cmd: >
-      python scripts/training/train_albert.py
-      --input_delta data/trusted/sephora_clean/reviews_0_250
-      --output_dir models/albert_subset_0_250
+  merge_trusted_reviews:
+    cmd: python scripts/data_cleaning/merge_trusted_reviews.py --input-dir data/trusted/sephora_clean --output data/trusted/reviews_full
     deps:
-      - data/trusted/sephora_clean/reviews_0_250
-      - params.yaml
-      - scripts/training/train_albert.py
+      - scripts/data_cleaning/merge_trusted_reviews.py
+      - data/trusted/sephora_clean
     outs:
-      - models/albert_subset_0_250
-    frozen: true
+      - data/trusted/reviews_full
 
-  prepare_test_albert_subset_0_250:
+  eda_full:
+    cmd: python scripts/EDA/eda_reviews.py --input data/trusted/reviews_full --outdir reports/eda/full --tokenizer albert-base-v2
+    deps:
+      - scripts/EDA/eda_reviews.py
+      - data/trusted/reviews_full
+      - params.yaml
+    outs:
+      - reports/eda/full
+
+  sample_reviews:
+    cmd: >
+      python scripts/data_cleaning/sample_reviews.py
+      --input data/trusted/reviews_full
+      --output data/trusted/reviews_sample_30pct
+      --frac 0.30
+      --by labels
+      --seed 42
+    deps:
+      - scripts/data_cleaning/sample_reviews.py
+      - data/trusted/reviews_full
+    outs:
+      - data/trusted/reviews_sample_30pct
+
+  eda_sample:
+    cmd: python scripts/EDA/eda_reviews.py --input data/trusted/reviews_sample_30pct --outdir reports/eda/sample_30pct --tokenizer albert-base-v2
+    deps:
+      - scripts/EDA/eda_reviews.py
+      - data/trusted/reviews_sample_30pct
+      - params.yaml
+    outs:
+      - reports/eda/sample_30pct
+
+  eda_compare_full_vs_sample_30pct:
+    cmd: python scripts/EDA/eda_compare.py --full reports/eda/full --sample reports/eda/sample_30pct --outdir reports/eda/compare_full_vs_sample_30pct
+    deps:
+      - scripts/EDA/eda_compare.py
+      - reports/eda/full
+      - reports/eda/sample_30pct
+    outs:
+      - reports/eda/compare_full_vs_sample_30pct
+
+  split_train_val_test:
     cmd: >
       python scripts/training/prepare_test_parquet.py
-      --input data/trusted/sephora_clean/reviews_0_250
-      --output reports/albert_subset_0_250/test.parquet
-      --text_col review_text
-      --rating_col rating
-      --id_col review_id
+      --input  data/trusted/reviews_sample_30pct
+      --outdir data/exploitation/modelos_input/sample_tvt
       --seed 42
-      --test_size 0.15
     deps:
       - scripts/training/prepare_test_parquet.py
-      - data/trusted/sephora_clean/reviews_0_250
+      - data/trusted/reviews_sample_30pct
+      - params.yaml
     outs:
-      - reports/albert_subset_0_250/test.parquet
+      - data/exploitation/modelos_input/sample_tvt
 
-  eval_albert_subset_0_250:
+  train_albert_sample:
     cmd: >
-      python scripts/training/evaluate_albert.py
-      --model_dir models/albert_subset_0_250
-      --test_parquet reports/albert_subset_0_250/test.parquet
-      --output_dir reports/albert_subset_0_250
-      --max_len 128
+      MLFLOW_RUN_NAME=albert_sample_30pct
+      python scripts/training/train_albert_from_parquets.py
+      --train data/exploitation/modelos_input/sample_tvt/train
+      --val   data/exploitation/modelos_input/sample_tvt/val
+      --model-out models/albert_sample_30pct
+      --params params.yaml
+    deps:
+      - scripts/training/train_albert_from_parquets.py
+      - data/exploitation/modelos_input/sample_tvt/train
+      - data/exploitation/modelos_input/sample_tvt/val
+      - params.yaml
+    outs:
+      - models/albert_sample_30pct
+
+  evaluate_albert_sample:
+    cmd: >
+      PYTHONNOUSERSITE=1 TRANSFORMERS_NO_TF=1 TRANSFORMERS_NO_JAX=1 USE_TF=0 USE_JAX=0
+      /home/pedro/MASTER_BIGDATA/venv/bin/python scripts/training/evaluate_albert.py
+      --model_dir models/albert_sample_30pct
+      --test_parquet data/exploitation/modelos_input/sample_tvt/test
+      --max_len 176
+      --output_dir reports/albert_sample_30pct/eval
     deps:
       - scripts/training/evaluate_albert.py
-      - models/albert_subset_0_250
-      - reports/albert_subset_0_250/test.parquet
+      - models/albert_sample_30pct
+      - data/exploitation/modelos_input/sample_tvt/test
     outs:
-      - reports/albert_subset_0_250/predictions.parquet
+      - reports/albert_sample_30pct/eval
+  infer_albert_all:
+    cmd: >
+      PYTHONNOUSERSITE=1 TRANSFORMERS_NO_TF=1 TRANSFORMERS_NO_JAX=1 USE_TF=0 USE_JAX=0
+      /home/pedro/MASTER_BIGDATA/venv/bin/python scripts/training/infer_albert_all.py
+      --model_dir models/albert_sample_30pct
+      --input_parquet data/trusted/reviews_full
+      --output_parquet reports/albert_sample_30pct/infer/predictions.parquet
+      --eval_output_dir reports/albert_sample_30pct/infer_eval_full
+    deps:
+      - scripts/training/infer_albert_all.py
+      - models/albert_sample_30pct
+      - data/trusted/reviews_full
+    outs:
+      - reports/albert_sample_30pct/infer/predictions.parquet
     metrics:
-      - reports/albert_subset_0_250/metrics.json
-
-  infer_sephora:
-    foreach:
-      - reviews_0_250
-      - reviews_250_500
-      - reviews_500_750
-      - reviews_750_1250
-      - reviews_1250_end
-    do:
-      cmd: >
-        TOKENIZERS_PARALLELISM=false
-        python scripts/training/infer_albert_all.py
-        --model_dir models/albert_subset_0_250
-        --input_parquet data/trusted/sephora_clean/${item}
-        --output_parquet reports/albert_subset_all/${item}_preds.parquet
-        --text_col review_text --id_col review_id --max_len 128
-        --batch 256 --num_workers 8
-      deps:
-        - scripts/training/infer_albert_all.py
-        - models/albert_subset_0_250
-        - data/trusted/sephora_clean/${item}
-      outs:
-        - reports/albert_subset_all/${item}_preds.parquet
-
-  merge_infer_sephora:
-    cmd: >
-      python scripts/evaluation/merge_parquets.py
-      --out reports/albert_subset_all/predictions_all.parquet
-      reports/albert_subset_all/reviews_0_250_preds.parquet
-      reports/albert_subset_all/reviews_250_500_preds.parquet
-      reports/albert_subset_all/reviews_500_750_preds.parquet
-      reports/albert_subset_all/reviews_750_1250_preds.parquet
-      reports/albert_subset_all/reviews_1250_end_preds.parquet
-    deps:
-      - scripts/evaluation/merge_parquets.py
-      - reports/albert_subset_all/reviews_0_250_preds.parquet
-      - reports/albert_subset_all/reviews_250_500_preds.parquet
-      - reports/albert_subset_all/reviews_500_750_preds.parquet
-      - reports/albert_subset_all/reviews_750_1250_preds.parquet
-      - reports/albert_subset_all/reviews_1250_end_preds.parquet
-    outs:
-      - reports/albert_subset_all/predictions_all.parquet
-
-  metrics_partitions:
-    cmd: >
-      python scripts/evaluation/metrics_partitions.py
-      --inputs_dir reports/albert_subset_all
-      --pattern "*_preds.parquet"
-      --out_csv reports/albert_subset_all/metrics_partitions.csv
-    deps:
-      - scripts/evaluation/metrics_partitions.py
-      - reports/albert_subset_all/reviews_0_250_preds.parquet
-      - reports/albert_subset_all/reviews_250_500_preds.parquet
-      - reports/albert_subset_all/reviews_500_750_preds.parquet
-      - reports/albert_subset_all/reviews_750_1250_preds.parquet
-      - reports/albert_subset_all/reviews_1250_end_preds.parquet
-    outs:
-      - reports/albert_subset_all/metrics_partitions.csv
-
-  metrics_overall:
-    cmd: >
-      python scripts/evaluation/metrics_overall.py
-      --preds reports/albert_subset_all/predictions_all.parquet
-      --out_dir reports/albert_subset_all
-    deps:
-      - scripts/evaluation/metrics_overall.py
-      - reports/albert_subset_all/predictions_all.parquet
-    outs:
-      - reports/albert_subset_all/metrics_overall.json
-      - reports/albert_subset_all/confusion_all.png
+      - reports/albert_sample_30pct/infer_eval_full/metrics.json
+    plots:
+      - reports/albert_sample_30pct/infer_eval_full/confusion.csv
 
 

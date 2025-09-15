@@ -1,166 +1,250 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Inferencia masiva para ALBERT (3 clases). Lee un parquet o carpeta con parquet,
-predice en batches y guarda un parquet con:
-- id (review_id o generado)
-- pred_index (0=neg,1=neu,2=pos)
-- pred_label (si el checkpoint tiene id2label)
-- p_<clase> (probabilidades)
-- true_label (0/1/2) si hay rating o label3 en los datos
 
-Uso típico (como en DVC):
-  python scripts/training/infer_albert_all.py \
-    --model_dir models/albert_subset_0_250 \
-    --input_parquet data/trusted/sephora_clean/reviews_0_250 \
-    --output_parquet reports/albert_subset_all/reviews_0_250_preds.parquet \
-    --text_col review_text --id_col review_id --max_len 128 --batch 256
-"""
-import os, argparse, glob, warnings
-import numpy as np
+import os, argparse, json, warnings
+from typing import Optional, Tuple, List
+warnings.filterwarnings("ignore")
+
 import pandas as pd
+import numpy as np
+
+# HF / Torch
 import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from tqdm.auto import tqdm
+from transformers import AutoTokenizer, AlbertForSequenceClassification
 
-# Silenciar avisos ruidosos
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+# Métricas / plots
+from sklearn.metrics import (
+    accuracy_score, precision_recall_fscore_support,
+    classification_report, confusion_matrix
+)
+import matplotlib.pyplot as plt
+
+# YAML params
 try:
-    from transformers.utils import logging as hf_logging
-    hf_logging.set_verbosity_error()
+    import yaml
 except Exception:
-    pass
-warnings.filterwarnings("ignore", category=FutureWarning, module="transformers")
+    yaml = None
 
 
-def parse_args():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--model_dir", required=True, type=str)
-    ap.add_argument("--input_parquet", required=True, type=str, help="Archivo .parquet o carpeta con .parquet")
-    ap.add_argument("--output_parquet", required=True, type=str)
-    ap.add_argument("--text_col", default="review_text", type=str)
-    ap.add_argument("--id_col", default="review_id", type=str)
-    ap.add_argument("--max_len", default=128, type=int)
-    ap.add_argument("--batch", default=256, type=int)
-    ap.add_argument("--num_workers", default=0, type=int)  # compatibilidad (no se usa aquí)
-    return ap.parse_args()
+# ---------- Utilidades ----------
+DEF_TEXT_COL = "review_text"
+DEF_ID_COL   = "review_id"
+POSSIBLE_LABEL_COLS = ["label", "label3", "target"]
 
+CLASS_ID_TO_NAME = {0: "negative", 1: "neutral", 2: "positive"}
 
-def load_parquet_or_dir(path_like: str) -> pd.DataFrame:
-    assert os.path.exists(path_like), f"No existe: {path_like}"
-    if os.path.isdir(path_like):
-        parts = sorted(glob.glob(os.path.join(path_like, "*.parquet")))
-        assert parts, f"No se hallaron .parquet en {path_like}"
-        return pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
-    return pd.read_parquet(path_like)
+def load_params(path: str = "params.yaml") -> dict:
+    if yaml and os.path.exists(path):
+        with open(path, "r") as f:
+            return yaml.safe_load(f) or {}
+    return {}
 
+def ensure_dir(p: str):
+    os.makedirs(os.path.dirname(p), exist_ok=True) if os.path.splitext(p)[1] else os.makedirs(p, exist_ok=True)
 
-def ensure_cols(df: pd.DataFrame, text_col: str, id_col: str):
-    # Texto
-    if text_col not in df.columns:
-        if "text" in df.columns:
-            text_col = "text"
-        else:
-            raise ValueError(f"No encuentro columna de texto: '{text_col}' ni 'text'")
-    # ID
-    if id_col not in df.columns:
-        gen_id = pd.util.hash_pandas_object(df[text_col].astype(str), index=False).astype(str)
-        df = df.copy()
-        df["gen_id"] = gen_id
-        id_col = "gen_id"
-    return df, text_col, id_col
-
-
-def derive_true_label(df: pd.DataFrame):
-    """Devuelve np.int32 (0/1/2) o None si no se puede derivar."""
-    if "label3" in df.columns:
-        return df["label3"].astype("int32").to_numpy()
-    if "rating" in df.columns:
-        r = df["rating"].astype(int).clip(1, 5).to_numpy()
-        lab3 = np.where(r <= 2, 0, np.where(r == 3, 1, 2))
-        return lab3.astype("int32")
+def map_rating_to_label3(r: Optional[float]) -> Optional[int]:
+    if r is None or (isinstance(r, float) and np.isnan(r)):
+        return None
+    try:
+        r = int(r)
+    except Exception:
+        return None
+    if r in (1, 2): return 0   # negative
+    if r == 3:     return 1    # neutral
+    if r in (4, 5):return 2    # positive
     return None
 
+def pick_label_series(df: pd.DataFrame) -> Tuple[Optional[pd.Series], str]:
+    # intenta encontrar label directo
+    for c in POSSIBLE_LABEL_COLS:
+        if c in df.columns:
+            return df[c], c
+    # si no, intenta derivar desde rating
+    if "rating" in df.columns:
+        return df["rating"].map(map_rating_to_label3), "rating→label3"
+    return None, ""
 
+def plot_confusion(cm: np.ndarray, labels: List[str], out_png: str, normalize: bool = False):
+    fig = plt.figure(figsize=(6, 5), dpi=140)
+    data = cm.astype('float')
+    if normalize:
+        row_sums = data.sum(axis=1, keepdims=True)
+        row_sums[row_sums == 0.0] = 1.0
+        data = data / row_sums
+    im = plt.imshow(data, interpolation='nearest')
+    plt.colorbar(im, fraction=0.046, pad=0.04)
+    tick_marks = np.arange(len(labels))
+    plt.xticks(tick_marks, labels, rotation=35)
+    plt.yticks(tick_marks, labels)
+    fmt = ".2f" if normalize else "d"
+    thresh = data.max() / 2.0
+    for i in range(data.shape[0]):
+        for j in range(data.shape[1]):
+            plt.text(j, i, format(data[i, j], fmt),
+                     ha="center", va="center",
+                     color="white" if data[i, j] > thresh else "black")
+    title = "Confusion Matrix (normalized)" if normalize else "Confusion Matrix"
+    plt.title(title)
+    plt.ylabel("True label")
+    plt.xlabel("Predicted label")
+    ensure_dir(out_png)
+    plt.tight_layout()
+    plt.savefig(out_png)
+    plt.close(fig)
+
+
+# ---------- Inferencia + evaluación opcional ----------
 def main():
-    args = parse_args()
-    os.makedirs(os.path.dirname(args.output_parquet), exist_ok=True)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model_dir", required=True, help="Directorio del modelo ALBERT guardado")
+    ap.add_argument("--input_parquet", required=True, help="Ruta a parquet o carpeta con parquets")
+    ap.add_argument("--output_parquet", required=True, help="Predicciones parquet")
+    ap.add_argument("--text_col", default=DEF_TEXT_COL)
+    ap.add_argument("--id_col", default=DEF_ID_COL)
+    ap.add_argument("--max_len", type=int, default=None, help="Override de params.yaml")
+    ap.add_argument("--batch_size", type=int, default=128)
+    ap.add_argument("--eval_output_dir", default=None, help="Si se pasa, escribe métricas/confusión aquí. Por defecto usa carpeta de output_parquet/infer_eval")
+    ap.add_argument("--params_yaml", default="params.yaml")
+    args = ap.parse_args()
 
-    # 1) Cargar datos (archivo o carpeta)
-    df = load_parquet_or_dir(args.input_parquet)
-    if df.empty:
-        raise SystemExit("Input vacío")
+    # Lee params.yaml (para max_len si no se pasó)
+    params = load_params(args.params_yaml)
+    if args.max_len is None:
+        args.max_len = (
+            params.get("model", {})
+                  .get("albert", {})
+                  .get("max_len", 192)
+        )
 
-    # 2) Asegurar columnas de texto e id
-    df, text_col, id_col = ensure_cols(df, args.text_col, args.id_col)
+    # Carga datos
+    # - si es carpeta, lee todos los parquet dentro (partitioned dataset)
+    if os.path.isdir(args.input_parquet):
+        df = pd.read_parquet(args.input_parquet, engine="pyarrow")
+    else:
+        df = pd.read_parquet(args.input_parquet, engine="pyarrow")
 
-    # 3) Etiqueta verdadera (opcional) en 0/1/2
-    true_label = derive_true_label(df)  # np.int32 o None
+    # Limpia NaNs en texto
+    if args.text_col not in df.columns:
+        raise ValueError(f"No existe la columna de texto '{args.text_col}' en el input.")
+    texts = df[args.text_col].astype(str).fillna("").tolist()
 
-    # 4) Modelo + tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(args.model_dir, use_fast=True)
-    model = AutoModelForSequenceClassification.from_pretrained(args.model_dir)
+    # Dispositivo
     device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Carga modelo/tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(args.model_dir)
+    model = AlbertForSequenceClassification.from_pretrained(args.model_dir)
     model.to(device)
     model.eval()
-    print(f"[DEVICE] {device}")
 
-    # Nombres de clases/probabilidades
-    if getattr(model.config, "id2label", None):
-        try:
-            id2label = {int(k): v for k, v in model.config.id2label.items()}
-        except Exception:
-            id2label = model.config.id2label
-        class_names = [id2label[i] for i in range(len(id2label))]
-    else:
-        ncls = getattr(model.config, "num_labels", 3)
-        class_names = ["neg", "neu", "pos"] if ncls == 3 else [f"class_{i}" for i in range(ncls)]
+    # Inferencia en batches
+    preds = []
+    probs = []
 
-    # 5) Textos/ids
-    texts = df[text_col].astype(str).tolist()
-    ids   = df[id_col].astype(str).tolist()
-    N = len(texts)
+    def iter_batches(seq, bs):
+        for i in range(0, len(seq), bs):
+            yield seq[i:i+bs]
 
-    # 6) Inferencia batcheada
-    probs_list = []
-    for i in tqdm(range(0, N, args.batch)):
-        batch_texts = texts[i:i+args.batch]
-        enc = tokenizer(
-            batch_texts,
-            truncation=True, padding="max_length",
-            max_length=args.max_len, return_tensors="pt"
+    with torch.no_grad():
+        for batch_texts in iter_batches(texts, args.batch_size):
+            inputs = tokenizer(
+                batch_texts,
+                padding=True,
+                truncation=True,
+                max_length=args.max_len,
+                return_tensors="pt"
+            )
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+            logits = model(**inputs).logits
+            batch_probs = torch.softmax(logits, dim=-1).cpu().numpy()
+            batch_preds = batch_probs.argmax(axis=1)
+            preds.extend(batch_preds.tolist())
+            probs.extend(batch_probs.tolist())
+
+    # Construye dataframe de salida
+    out = pd.DataFrame({
+        args.id_col: df[args.id_col].values if args.id_col in df.columns else np.arange(len(df)),
+        "pred_label_id": preds,
+        "pred_label": [CLASS_ID_TO_NAME.get(i, f"class_{i}") for i in preds],
+        "prob_neg": [p[0] for p in probs],
+        "prob_neu": [p[1] for p in probs],
+        "prob_pos": [p[2] for p in probs],
+    })
+
+    # (opcional) añade rating o labels originales si existían
+    for c in [*POSSIBLE_LABEL_COLS, "rating"]:
+        if c in df.columns and c not in out.columns:
+            out[c] = df[c].values
+
+    # Guarda predicciones
+    ensure_dir(args.output_parquet)
+    out.to_parquet(args.output_parquet, index=False)
+
+    # ===== Evaluación si hay labels / rating =====
+    # Busca columna de verdad-terreno o deriva desde rating
+    y_true_series, src = pick_label_series(df)
+    if y_true_series is not None:
+        y_true = y_true_series.values
+        # Deriva label3 desde rating si venía de ahí
+        if src == "rating→label3":
+            # ya viene mapeado en pick_label_series
+            pass
+
+        # Asegura enteros 0/1/2
+        y_true = pd.Series(y_true).astype("float").round().astype("Int64")
+        mask = y_true.notna()
+        y_true = y_true[mask].astype(int)
+        y_pred = out.loc[mask.index[mask], "pred_label_id"].astype(int)
+
+        labels = [0, 1, 2]
+        label_names = [CLASS_ID_TO_NAME[i] for i in labels]
+
+        # Métricas
+        acc = accuracy_score(y_true, y_pred)
+        pr_w, rc_w, f1_w, _ = precision_recall_fscore_support(y_true, y_pred, labels=labels, average="weighted", zero_division=0)
+        pr_m, rc_m, f1_m, _ = precision_recall_fscore_support(y_true, y_pred, labels=labels, average="macro", zero_division=0)
+
+        cls_rep = classification_report(
+            y_true, y_pred, labels=labels, target_names=label_names, output_dict=True, zero_division=0
         )
-        enc = {k: v.to(device) for k, v in enc.items()}
-        with torch.no_grad():
-            logits = model(**enc).logits
-            p = torch.softmax(logits, dim=-1).detach().cpu().to(torch.float32).numpy()
-        probs_list.append(p)
+        cm = confusion_matrix(y_true, y_pred, labels=labels)
 
-    probs = np.vstack(probs_list).astype("float32")
-    pred_index = probs.argmax(axis=1).astype("int32")
+        # Salidas
+        eval_dir = (
+            args.eval_output_dir
+            if args.eval_output_dir
+            else os.path.join(os.path.dirname(args.output_parquet), "infer_eval")
+        )
+        ensure_dir(eval_dir)
 
-    # 7) DataFrame de salida con tipos "planos"
-    out = {
-        "id": [str(x) for x in ids],
-        "pred_index": pred_index,
-    }
+        # metrics.json / csv
+        metrics = {
+            "source_of_truth": src if src else "explicit_label",
+            "accuracy": float(acc),
+            "precision_weighted": float(pr_w),
+            "recall_weighted": float(rc_w),
+            "f1_weighted": float(f1_w),
+            "precision_macro": float(pr_m),
+            "recall_macro": float(rc_m),
+            "f1_macro": float(f1_m),
+            "n_samples_eval": int(len(y_true)),
+        }
+        with open(os.path.join(eval_dir, "metrics.json"), "w") as f:
+            json.dump(metrics, f, indent=2)
+        pd.DataFrame([metrics]).to_csv(os.path.join(eval_dir, "metrics.csv"), index=False)
 
-    # Etiqueta legible (si el checkpoint tiene nombres)
-    if len(class_names) == probs.shape[1]:
-        out["pred_label"] = [class_names[int(i)] for i in pred_index]
+        # classification_report.csv
+        pd.DataFrame(cls_rep).T.to_csv(os.path.join(eval_dir, "classification_report.csv"))
 
-    # Probabilidades por clase
-    for j, cname in enumerate(class_names):
-        safe = cname.lower().replace(" ", "_")
-        out[f"p_{safe}"] = probs[:, j]
+        # confusion matrices (png) + csv
+        plot_confusion(cm, label_names, os.path.join(eval_dir, "confusion.png"), normalize=False)
+        plot_confusion(cm, label_names, os.path.join(eval_dir, "confusion_normalized.png"), normalize=True)
+        # también guardo los números
+        pd.DataFrame(cm, index=label_names, columns=label_names).to_csv(os.path.join(eval_dir, "confusion.csv"))
 
-    # Etiqueta verdadera si la tenemos
-    if true_label is not None:
-        out["true_label"] = true_label  # ya es np.int32
-
-    out_df = pd.DataFrame(out)
-    out_df.to_parquet(args.output_parquet, index=False, engine="pyarrow")
-    print(f"✅ Guardado: {args.output_parquet}  (filas={len(out_df)})")
+        print(f"[infer+eval] Done. Acc={acc:.4f} | eval_dir={eval_dir} | truth={src or 'label'}")
+    else:
+        print("[infer] No se encontraron columnas de verdad-terreno (label/label3/target ni rating). Solo se guardaron predicciones.")
 
 
 if __name__ == "__main__":
