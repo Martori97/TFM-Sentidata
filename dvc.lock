@@ -33,48 +33,70 @@ stages:
       nfiles: 1
     - path: scripts/data_cleaning/conversion_a_delta.py
       hash: md5
-      md5: c3a4ec2564051338d2f39b94ceff02c7
-      size: 2042
+      md5: f2e92a0eb8508d5d7f9f8543545af804
+      size: 1737
     outs:
     - path: data/landing/sephora/delta
       hash: md5
-      md5: 39c99561684a67cebfb4b31442a84f6c.dir
-      size: 231057821
+      md5: 47202da879c584d9b6f1c1acfb2d082f.dir
+      size: 231057567
       nfiles: 188
-    - path: data/landing/ulta/delta
+    - path: data/landing/ulta/parquet
       hash: md5
-      md5: c7c7e40a30081d401f2613b1a1ea681f.dir
-      size: 592065
+      md5: 57601a71227358c8bebc5324b0df3a90.dir
+      size: 589305
       nfiles: 4
   trusted_cleaning:
     cmd: python scripts/data_cleaning/trusted_clean_driver.py
     deps:
     - path: data/landing/sephora/delta
       hash: md5
-      md5: 39c99561684a67cebfb4b31442a84f6c.dir
-      size: 231057821
+      md5: 47202da879c584d9b6f1c1acfb2d082f.dir
+      size: 231057567
       nfiles: 188
-    - path: data/landing/ulta/delta
-      hash: md5
-      md5: c7c7e40a30081d401f2613b1a1ea681f.dir
-      size: 592065
-      nfiles: 4
     - path: scripts/data_cleaning/trusted_clean_driver.py
       hash: md5
-      md5: a3e2446b4dff6056698cb1cf625de1e1
-      size: 838
+      md5: 3a7a8ceac9f4a55c5c30e7d9b60d6608
+      size: 896
     - path: scripts/data_cleaning/trusted_clean_single.py
       hash: md5
-      md5: 20425a8564e37e81499f3688089c88ce
-      size: 1594
+      md5: cfb27508a260259b110e4127f5df4f39
+      size: 2441
+    - path: scripts/data_cleaning/utils_text.py
+      hash: md5
+      md5: d5aa64f46d22e25aefeb75f69477a0af
+      size: 3929
     outs:
     - path: data/trusted/sephora_clean
       hash: md5
-      md5: dbc3fd65700af1e91c2cab66e6ab24b7.dir
-      size: 249124032
-      nfiles: 292
-    - path: data/trusted/ulta_clean
+      md5: dbea4fe4d8e64c64a73344b496868480.dir
+      size: 443910034
+      nfiles: 50
+  build_model_input:
+    cmd: python scripts/data_cleaning/filtrar_reviews_base.py
+    deps:
+    - path: data/trusted/sephora_clean
       hash: md5
-      md5: 7d9ed562e38529d2808e63459dc0240e.dir
-      size: 605345
+      md5: dbea4fe4d8e64c64a73344b496868480.dir
+      size: 443910034
+      nfiles: 50
+    - path: scripts/data_cleaning/filtrar_reviews_base.py
+      hash: md5
+      md5: f46d3231d13cd8c587aadc7ff59d984a
+      size: 7424
+    outs:
+    - path: data/exploitation/modelos_input/reviews_base_csv
+      hash: md5
+      md5: 3d93f9a9c50f11dc283d9e1233c0b01f.dir
+      size: 1141441361
       nfiles: 4
+    - path: data/exploitation/modelos_input/reviews_base_delta
+      hash: md5
+      md5: 7999e1fe20b971ee1b6eb7c4b0bd9c0b.dir
+      size: 706746849
+      nfiles: 30
+    - path: data/exploitation/modelos_input/reviews_base_parquet
+      hash: md5
+      md5: 36d770f9fb35d7a5415cee76febe55ba.dir
+      size: 585690803
+      nfiles: 26

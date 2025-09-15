@@ -14,14 +14,22 @@ stages:
     - scripts/data_cleaning/conversion_a_delta.py
     outs:
     - data/landing/sephora/delta
-    - data/landing/ulta/delta
+    - data/landing/ulta/parquet
   trusted_cleaning:
     cmd: python scripts/data_cleaning/trusted_clean_driver.py
     deps:
     - data/landing/sephora/delta
-    - data/landing/ulta/delta
     - scripts/data_cleaning/trusted_clean_driver.py
     - scripts/data_cleaning/trusted_clean_single.py
+    - scripts/data_cleaning/utils_text.py
     outs:
     - data/trusted/sephora_clean
-    - data/trusted/ulta_clean
+  build_model_input:
+    cmd: python scripts/data_cleaning/filtrar_reviews_base.py
+    deps:
+    - data/trusted/sephora_clean
+    - scripts/data_cleaning/filtrar_reviews_base.py
+    outs:
+    - data/exploitation/modelos_input/reviews_base_csv
+    - data/exploitation/modelos_input/reviews_base_delta
+    - data/exploitation/modelos_input/reviews_base_parquet
