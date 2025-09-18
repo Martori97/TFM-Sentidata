@@ -1,316 +1,207 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
-import os, argparse, json, warnings
+import os, argparse, json, warnings, sys
 warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
-
 import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoConfig
 from sklearn.metrics import confusion_matrix
-import matplotlib
-matplotlib.use("Agg")  # evitar problemas de display en servidores/CLI
-import matplotlib.pyplot as plt
-
-import pyarrow as pa
-import pyarrow.dataset as ds
-import pyarrow.parquet as pq
+import pyarrow as pa, pyarrow.dataset as ds, pyarrow.parquet as pq
 from tqdm import tqdm
 
-# --- YAML (params.yaml) ---
-try:
-    import yaml
-except Exception:
-    yaml = None
-
-# ---------- Config por defecto ----------
-DEF_TEXT_COL = "review_text"
-DEF_ID_COL   = "review_id"
-POSSIBLE_LABEL_COLS = ["label", "label3", "target"]
-CLASS_ID_TO_NAME = {0: "negative", 1: "neutral", 2: "positive"}
+CLASS_ID_TO_NAME = {0:"negative",1:"neutral",2:"positive"}
+POSSIBLE_LABEL_COLS = ["label","label3","target"]
 
 DEFAULTS = {
-    "max_len": 192,
-    "batch_size": 256,      # inferencia → batch grande por defecto
-    "stream_batch": 20000,  # tamaño de lectura en filas (CPU)
-    "no_probs": False,
+  "text_col":"review_text_clean","id_col":"review_id","max_len":192,
+  "batch_size":256,"stream_batch":20000,"no_probs":False,"pad_to_multiple_of":8,
+  "bf16":True,"fp16":False,"enable_sdp_flash":True,
+  "torch_compile":False,"torch_compile_mode":"reduce-overhead",
+  "torch_compile_backend":"inductor","tokenizers_parallelism":True,
 }
 
-def ensure_dir_for_file(path: str):
-    d = os.path.dirname(path)
-    if d and not os.path.exists(d):
-        os.makedirs(d, exist_ok=True)
+def load_params_yaml(path="params.yaml"):
+    try:
+        import yaml
+    except Exception:
+        return {}
+    if not os.path.exists(path): return {}
+    with open(path,"r") as f: return (yaml.safe_load(f) or {})
 
 def map_rating_to_label3(r):
-    try:
-        r = int(r)
-    except Exception:
-        return None
-    if r in (1, 2): return 0
-    if r == 3:      return 1
-    if r in (4, 5): return 2
+    try: r = int(r)
+    except: return None
+    if r in (1,2): return 0
+    if r == 3: return 1
+    if r in (4,5): return 2
     return None
 
-def plot_confusion(cm: np.ndarray, labels, out_png: str, normalize: bool = False):
-    fig = plt.figure(figsize=(6,5), dpi=140)
-    if normalize:
-        data = cm.astype(float)
-        row_sums = data.sum(axis=1, keepdims=True)
-        row_sums[row_sums == 0.0] = 1.0
-        data = data / row_sums
-        fmt = ".2f"
-    else:
-        data = cm.astype(int)
-        fmt = "d"
+def ensure_parent(path):
+    d = os.path.dirname(path)
+    if d and not os.path.exists(d): os.makedirs(d, exist_ok=True)
 
-    im = plt.imshow(data, interpolation='nearest')
-    plt.colorbar(im, fraction=0.046, pad=0.04)
-    ticks = np.arange(len(labels))
-    plt.xticks(ticks, labels, rotation=35)
-    plt.yticks(ticks, labels)
-    thresh = (np.nanmax(data) / 2.0) if data.size else 0.5
-    for i in range(data.shape[0]):
-        for j in range(data.shape[1]):
-            v = data[i, j]
-            plt.text(j, i, format(v, fmt),
-                     ha="center", va="center",
-                     color="white" if v > thresh else "black")
-    plt.title("Confusion Matrix (normalized)" if normalize else "Confusion Matrix")
-    plt.ylabel("True label")
-    plt.xlabel("Predicted label")
-    ensure_dir_for_file(out_png)
-    plt.tight_layout()
-    plt.savefig(out_png)
-    plt.close(fig)
-
-def load_params_yaml(path="params.yaml"):
-    if not yaml or not os.path.exists(path):
-        return {}
-    with open(path, "r") as f:
-        try:
-            return yaml.safe_load(f) or {}
-        except Exception:
-            return {}
+def load_model_robust(model_dir, device, num_labels=None):
+    try:
+        m = AutoModelForSequenceClassification.from_pretrained(
+            model_dir, num_labels=num_labels if num_labels is not None else None
+        ).to(device).eval()
+        return m
+    except Exception as e:
+        print(f"[warn] carga directa falló: {e}", file=sys.stderr)
+        ckpt_bin = os.path.join(model_dir,"pytorch_model.bin")
+        ckpt_safe= os.path.join(model_dir,"model.safetensors")
+        if not (os.path.exists(ckpt_bin) or os.path.exists(ckpt_safe)):
+            raise RuntimeError(f"Sin pesos en {model_dir}")
+        cfg = AutoConfig.from_pretrained(model_dir)
+        if num_labels is not None: cfg.num_labels = num_labels
+        m = AutoModelForSequenceClassification.from_config(cfg).to(device).eval()
+        if os.path.exists(ckpt_safe):
+            from safetensors.torch import load_file as sload
+            sd = sload(ckpt_safe, device="cpu")
+        else:
+            sd = torch.load(ckpt_bin, map_location="cpu")
+        new_sd = {k.replace("albert._orig_mod.","albert."): v for k,v in sd.items()}
+        miss, unexp = m.load_state_dict(new_sd, strict=False)
+        print(f"[fix] remap _orig_mod → albert. | missing={len(miss)} unexpected={len(unexp)}", file=sys.stderr)
+        return m
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model_dir", required=True)
-    ap.add_argument("--input_parquet", required=True, help="Parquet file o carpeta (dataset) de PyArrow")
+    ap.add_argument("--input_parquet", required=True)
     ap.add_argument("--output_parquet", required=True)
     ap.add_argument("--eval_output_dir", default=None)
-    ap.add_argument("--text_col", default=DEF_TEXT_COL)
-    ap.add_argument("--id_col", default=DEF_ID_COL)
-    # None → para aplicar precedencia CLI > params.yaml > defaults
-    ap.add_argument("--max_len", type=int, default=None)
-    ap.add_argument("--batch_size", type=int, default=None, help="Batch GPU (forward). 256 recomendado en inferencia.")
-    ap.add_argument("--stream_batch", type=int, default=None, help="Tamaño de lote de lectura/stream (CPU).")
-    ap.add_argument("--no_probs", action="store_true", help="No calcular probabilidades (softmax). Más rápido.")
     args = ap.parse_args()
 
-    # ---------- Cargar params.yaml (si existe) ----------
     params = load_params_yaml("params.yaml")
-    infer_cfg = (params.get("infer") or {})
+    infer = (params.get("infer") or {})
+    model_cfg = (params.get("model") or {}).get("albert", {})
 
-    # ---------- Resolver hiperparámetros con precedencia ----------
-    # CLI > params.yaml (infer.* o model.albert.*) > DEFAULTS
-    max_len = args.max_len if args.max_len is not None else \
-              infer_cfg.get("max_len", params.get("model", {}).get("albert", {}).get("max_len", DEFAULTS["max_len"]))
-    batch_size = args.batch_size if args.batch_size is not None else \
-                 infer_cfg.get("batch_size", DEFAULTS["batch_size"])
-    stream_batch = args.stream_batch if args.stream_batch is not None else \
-                   infer_cfg.get("stream_batch", DEFAULTS["stream_batch"])
-    # no_probs: si viene flag CLI, manda; si no, params; si no, default
-    no_probs = args.no_probs or bool(infer_cfg.get("no_probs", DEFAULTS["no_probs"]))
+    text_col  = infer.get("text_col", model_cfg.get("text_col", DEFAULTS["text_col"]))
+    id_col    = infer.get("id_col", DEFAULTS["id_col"])
+    max_len   = int(infer.get("max_len", DEFAULTS["max_len"]))
+    bsz       = int(infer.get("batch_size", DEFAULTS["batch_size"]))
+    stream_bs = int(infer.get("stream_batch", DEFAULTS["stream_batch"]))
+    no_probs  = bool(infer.get("no_probs", DEFAULTS["no_probs"]))
+    pad_m8    = infer.get("pad_to_multiple_of", DEFAULTS["pad_to_multiple_of"])
+    bf16      = bool(infer.get("bf16", DEFAULTS["bf16"]))
+    fp16      = bool(infer.get("fp16", DEFAULTS["fp16"])) if not bf16 else False
+    sdp_flash = bool(infer.get("enable_sdp_flash", DEFAULTS["enable_sdp_flash"]))
+    tcompile  = bool(infer.get("torch_compile", DEFAULTS["torch_compile"]))
+    tmode     = str(infer.get("torch_compile_mode", DEFAULTS["torch_compile_mode"]))
+    tbackend  = str(infer.get("torch_compile_backend", DEFAULTS["torch_compile_backend"]))
+    tok_par   = bool(infer.get("tokenizers_parallelism", DEFAULTS["tokenizers_parallelism"]))
 
-    # ---------- Modelo / Tokenizer ----------
+    os.environ["TOKENIZERS_PARALLELISM"] = "true" if tok_par else "false"
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    torch.set_float32_matmul_precision("high")
     tok = AutoTokenizer.from_pretrained(args.model_dir, use_fast=True)
-    model = AutoModelForSequenceClassification.from_pretrained(args.model_dir)
-    model.to(device).eval()
+    num_labels = model_cfg.get("num_labels", None)
+    model = load_model_robust(args.model_dir, device, num_labels=num_labels)
 
-    # ---------- Dataset Arrow (streaming) ----------
-    dataset = ds.dataset(args.input_parquet, format="parquet")
-    total_rows = dataset.count_rows()
+    if sdp_flash and device=="cuda":
+        try:
+            from torch.backends.cuda import sdp_kernel
+            sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=True)
+        except Exception:
+            pass
 
-    # columnas existentes en el schema
-    schema_cols = set(dataset.schema.names)
+    if tcompile and hasattr(torch,"compile") and device=="cuda":
+        try:
+            model = torch.compile(model, backend=tbackend, mode=tmode, fullgraph=True)
+            print(f"[torch.compile] enabled backend={tbackend} mode={tmode}")
+        except Exception as e:
+            print(f"[torch.compile] disabled ({e})")
 
-    # columnas a leer desde disco (solo las que EXISTEN)
-    read_cols = []
-    # texto
-    if args.text_col in schema_cols:
-        read_cols.append(args.text_col)
-    else:
-        raise ValueError(f"No existe la columna de texto '{args.text_col}' en el input.")
-    # id (si existe; si no, se sintetiza al vuelo)
-    if args.id_col in schema_cols:
-        read_cols.append(args.id_col)
-    # verdad-terreno (solo si existen)
+    ds_in = ds.dataset(args.input_parquet, format="parquet")
+    cols = set(ds_in.schema.names)
+    if text_col not in cols:
+        raise SystemExit(f"No existe la columna '{text_col}'. Columnas: {sorted(cols)}")
+
+    read_cols = [text_col] + ([id_col] if id_col in cols else [])
     for c in ["rating", *POSSIBLE_LABEL_COLS]:
-        if c in schema_cols:
-            read_cols.append(c)
+        if c in cols: read_cols.append(c)
 
-    # ---------- Writer Parquet (append) ----------
-    ensure_dir_for_file(args.output_parquet)
-    writer = None  # pq.ParquetWriter
-    wrote_rows = 0
-
-    # ---------- Métricas incrementales (confusión) ----------
-    have_truth_any = False
-    labels_order = [0,1,2]
+    ensure_parent(args.output_parquet)
+    writer, wrote = None, 0
     cm_sum = np.zeros((3,3), dtype=np.int64)
-    support_sum = np.zeros(3, dtype=np.int64)
+    have_truth = False
 
-    # util: escribir bloque al parquet de salida
-    def write_block(df_out: pd.DataFrame):
-        nonlocal writer, wrote_rows
+    def write_block(df_out):
+        nonlocal writer, wrote
         table = pa.Table.from_pandas(df_out, preserve_index=False)
         if writer is None:
             writer = pq.ParquetWriter(args.output_parquet, table.schema)
         writer.write_table(table)
-        wrote_rows += len(df_out)
+        wrote += len(df_out)
 
-    # util: avanzar GPU en mini-batches
     def predict_batch_texts(texts):
-        preds_ids = []
-        probs = [] if not no_probs else None
-        for i in range(0, len(texts), batch_size):
-            batch_texts = texts[i:i+batch_size]
-            enc = tok(batch_texts, padding=True, truncation=True, max_length=max_len, return_tensors="pt")
-            enc = {k: v.to(device) for k, v in enc.items()}
-            with torch.no_grad():
+        preds, probs = [], None if no_probs else []
+        ac_dtype = torch.bfloat16 if (device=="cuda" and bf16) else (torch.float16 if (device=="cuda" and fp16) else None)
+        for i in range(0, len(texts), bsz):
+            enc = tok(texts[i:i+bsz], padding=True, truncation=True, max_length=max_len,
+                      pad_to_multiple_of=pad_m8, return_tensors="pt")
+            enc = {k: v.to(device, non_blocking=True) for k,v in enc.items()}
+            ctx = torch.autocast("cuda", dtype=ac_dtype) if ac_dtype is not None else torch.inference_mode()
+            with torch.inference_mode(), ctx:
                 logits = model(**enc).logits
-            pred = logits.argmax(dim=-1).detach().cpu().numpy()
-            preds_ids.extend(pred.tolist())
+            pred = logits.argmax(dim=-1).detach().cpu().numpy().tolist()
+            preds.extend(pred)
             if not no_probs:
-                p = torch.softmax(logits, dim=-1).detach().cpu().numpy()
-                probs.extend(p.tolist())
-        return preds_ids, probs
+                p = torch.softmax(logits.to(torch.float32), dim=-1).detach().cpu().numpy().tolist()
+                probs.extend(p)
+        return preds, probs
 
-    # ---------- Stream principal ----------
-    scanner = dataset.scanner(columns=read_cols, batch_size=stream_batch)
-    pbar = tqdm(total=total_rows, desc="Infer (stream)", unit="rows")
+    scanner = ds_in.scanner(columns=read_cols, batch_size=stream_bs)
+    for rb in tqdm(scanner.to_batches(), desc="Infer", unit="batch"):
+        df = rb.to_pandas()
+        texts = df[text_col].astype(str).fillna("").tolist()
 
-    for record_batch in scanner.to_batches():
-        # a pandas
-        df = record_batch.to_pandas(types_mapper=pd.ArrowDtype)
-        # sanea texto
-        texts = df[args.text_col].astype(str).fillna("").tolist()
-
-        # inferencia GPU
         pred_ids, prob_list = predict_batch_texts(texts)
 
-        # construir salida del bloque
         out = {
-            args.id_col: df[args.id_col].values if args.id_col in df.columns else np.arange(wrote_rows, wrote_rows+len(df)),
+            id_col: df[id_col].values if id_col in df.columns else np.arange(wrote, wrote+len(df)),
             "pred_label_id": np.array(pred_ids, dtype=np.int64),
             "pred_label": np.array([CLASS_ID_TO_NAME.get(i, f"class_{i}") for i in pred_ids], dtype=object),
         }
         if not no_probs and prob_list is not None:
             prob_arr = np.array(prob_list, dtype=np.float32)
-            out["prob_neg"] = prob_arr[:,0]
-            out["prob_neu"] = prob_arr[:,1]
-            out["prob_pos"] = prob_arr[:,2]
-
-        # añade rating/labels originales si existen (útil para auditoría)
+            out["prob_neg"], out["prob_neu"], out["prob_pos"] = prob_arr[:,0], prob_arr[:,1], prob_arr[:,2]
         for c in [*POSSIBLE_LABEL_COLS, "rating"]:
-            if c in df.columns:
-                out[c] = df[c].values
+            if c in df.columns: out[c] = df[c].values
 
-        out_df = pd.DataFrame(out)
-        write_block(out_df)
+        write_block(pd.DataFrame(out))
 
-        # actualizar confusión incremental si hay verdad
         truth = None
         for c in POSSIBLE_LABEL_COLS:
-            if c in df.columns:
-                truth = df[c].to_numpy()
-                break
+            if c in df.columns: truth = df[c].to_numpy(); break
         if truth is None and "rating" in df.columns:
             truth = np.array([map_rating_to_label3(x) for x in df["rating"].tolist()])
-
         if truth is not None:
-            m = pd.Series(truth).notna().to_numpy()
-            t = truth[m].astype(int)
-            y = np.array(pred_ids, dtype=int)[m]
-            cm_blk = confusion_matrix(t, y, labels=labels_order)
-            cm_sum += cm_blk
-            for i in labels_order:
-                support_sum[i] += (t == i).sum()
-            have_truth_any = True
+            y = np.array(pred_ids, dtype=int)[:len(truth)]
+            t = np.array(truth)[:len(y)]
+            m = pd.Series(t).notna().to_numpy()
+            if m.any():
+                cm_sum += confusion_matrix(t[m].astype(int), y[m], labels=[0,1,2])
+                have_truth = True
 
-        pbar.update(len(df))
+    if writer: writer.close()
 
-    pbar.close()
-    if writer is not None:
-        writer.close()
-
-    # ---------- Métricas y confusión (si hubo verdad) ----------
-    if have_truth_any:
+    if have_truth:
         eval_dir = args.eval_output_dir or os.path.join(os.path.dirname(args.output_parquet), "infer_eval")
         os.makedirs(eval_dir, exist_ok=True)
-
-        tp = np.diag(cm_sum).astype(float)
-        per_class_recall = np.divide(tp, cm_sum.sum(axis=1, keepdims=False), out=np.zeros_like(tp), where=cm_sum.sum(axis=1)!=0)
-        per_class_precision = np.divide(tp, cm_sum.sum(axis=0, keepdims=False), out=np.zeros_like(tp), where=cm_sum.sum(axis=0)!=0)
-        per_class_f1 = np.divide(2*per_class_precision*per_class_recall,
-                                 per_class_precision+per_class_recall,
-                                 out=np.zeros_like(tp),
-                                 where=(per_class_precision+per_class_recall)!=0)
-
-        macro_precision = float(np.nanmean(per_class_precision))
-        macro_recall    = float(np.nanmean(per_class_recall))
-        macro_f1        = float(np.nanmean(per_class_f1))
-        accuracy        = float(tp.sum() / cm_sum.sum()) if cm_sum.sum() > 0 else 0.0
-
-        weights = support_sum / support_sum.sum() if support_sum.sum() > 0 else np.array([0,0,0], dtype=float)
-        weighted_precision = float(np.nansum(per_class_precision * weights))
-        weighted_recall    = float(np.nansum(per_class_recall * weights))
-        weighted_f1        = float(np.nansum(per_class_f1 * weights))
-
-        label_names = [CLASS_ID_TO_NAME[i] for i in labels_order]
-
-        metrics = {
-            "accuracy": accuracy,
-            "precision_macro": macro_precision,
-            "recall_macro": macro_recall,
-            "f1_macro": macro_f1,
-            "precision_negative": float(per_class_precision[0]),
-            "recall_negative": float(per_class_recall[0]),
-            "f1_negative": float(per_class_f1[0]),
-            "precision_neutral":  float(per_class_precision[1]),
-            "recall_neutral":    float(per_class_recall[1]),
-            "f1_neutral":        float(per_class_f1[1]),
-            "precision_positive": float(per_class_precision[2]),
-            "recall_positive":    float(per_class_recall[2]),
-            "f1_positive":        float(per_class_f1[2]),
-            "support_negative":   int(support_sum[0]),
-            "support_neutral":    int(support_sum[1]),
-            "support_positive":   int(support_sum[2]),
-            "n_samples_eval":     int(support_sum.sum()),
-            "effective_params": {
-                "max_len": int(max_len),
-                "batch_size": int(batch_size),
-                "stream_batch": int(stream_batch),
-                "no_probs": bool(no_probs),
-                "text_col": args.text_col,
-                "id_col": args.id_col,
-            }
-        }
+        total = cm_sum.sum()
+        acc = float(np.diag(cm_sum).sum() / total) if total>0 else 0.0
         with open(os.path.join(eval_dir, "metrics.json"), "w") as f:
-            json.dump(metrics, f, indent=2)
-        pd.DataFrame([metrics]).to_csv(os.path.join(eval_dir, "metrics.csv"), index=False)
-
-        pd.DataFrame(cm_sum, index=label_names, columns=label_names).to_csv(os.path.join(eval_dir, "confusion.csv"))
-        plot_confusion(cm_sum, label_names, os.path.join(eval_dir, "confusion.png"), normalize=False)
-        plot_confusion(cm_sum, label_names, os.path.join(eval_dir, "confusion_normalized.png"), normalize=True)
-
-        print(f"[infer+eval] Done: wrote={wrote_rows} rows | acc={accuracy:.4f} | eval_dir={eval_dir}")
+            json.dump({"accuracy": acc}, f, indent=2)
+        pd.DataFrame(cm_sum, index=["negative","neutral","positive"],
+                     columns=["negative","neutral","positive"]).to_csv(os.path.join(eval_dir,"confusion.csv"))
+        print(f"[infer+eval] Done: wrote={wrote} | acc={acc:.4f} | eval_dir={eval_dir}")
     else:
-        print(f"[infer] Done: wrote={wrote_rows} rows (sin labels/rating -> no métricas)")
+        print(f"[infer] Done: wrote={wrote}")
 
 if __name__ == "__main__":
     main()

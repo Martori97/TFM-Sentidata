@@ -1,5 +1,6 @@
 model:
   albert:
+    clean_output: true
     model_name: albert-base-v2
     num_labels: 3
     max_len: 192
@@ -30,16 +31,44 @@ model:
     dataloader_prefetch_factor: 4
     dataloader_pin_memory: true
     dataloader_persistent_workers: true
-    resume_from_last: true
+    resume_from_last: false
 training:
   class_weights:
     mode: auto
     alpha: 1.0
 
 infer:
-  batch_size: 256
-  stream_batch: 20000
+  # columnas
+  text_col: review_text_clean
+  id_col: review_id
+
+  # tamaño de lote y streaming (ajusta solo si te da OOM)
+  batch_size: 2048   # si te da OOM baja a 768; si tienes 12GB, prueba 1536
+  stream_batch: 100000    # menos overhead de I/O que 50k
+
+  # nada de softmax (más rápido)
   no_probs: true
+
+  # kernels rápidos en GPU
+  bf16: true              # RTX 40xx: sí
+  fp16: false
+  enable_sdp_flash: true
+  pad_to_multiple_of: 8
+
+  # compilar la red para inferencia masiva
+  torch_compile: true
+  torch_compile_mode: reduce-overhead   # usa max-autotune si vas a procesar millones y te compensa el warmup
+  torch_compile_backend: inductor
+
+  # tokenizador multi-hilo (Rust HF)
+  tokenizers_parallelism: true
+
+  # regla para mejorar precisión de 'neutral' sin reentrenar
+  neutral_margin_logit: 0.5
+
+  # mantener longitud
+  max_len: 192
+
 
 mlflow:
   enable: true

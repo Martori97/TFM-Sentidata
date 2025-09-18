@@ -1,14 +1,19 @@
 stages:
 
   ingest_kaggle:
-    cmd: python scripts/data_ingestion/descarga_kaggle_reviews.py --out data/landing/sephora/raw
+    cmd: >
+      python scripts/data_ingestion/descarga_kaggle_reviews.py
+      --out data/landing/sephora/raw
     deps:
       - scripts/data_ingestion/descarga_kaggle_reviews.py
     outs:
       - data/landing/sephora/raw
 
   conversion_a_delta:
-    cmd: python scripts/data_cleaning/conversion_a_delta.py --input data/landing/sephora/raw --output data/landing/sephora/delta
+    cmd: >
+      python scripts/data_cleaning/conversion_a_delta.py
+      --input data/landing/sephora/raw
+      --output data/landing/sephora/delta
     deps:
       - scripts/data_cleaning/conversion_a_delta.py
       - data/landing/sephora/raw
@@ -16,7 +21,10 @@ stages:
       - data/landing/sephora/delta
 
   trusted_clean_driver:
-    cmd: python scripts/data_cleaning/trusted_clean_driver.py --input data/landing/sephora/delta --output data/trusted/sephora_clean
+    cmd: >
+      python scripts/data_cleaning/trusted_clean_driver.py
+      --input data/landing/sephora/delta
+      --output data/trusted/sephora_clean
     deps:
       - scripts/data_cleaning/trusted_clean_driver.py
       - scripts/data_cleaning/trusted_clean_single.py
@@ -25,7 +33,10 @@ stages:
       - data/trusted/sephora_clean
 
   merge_trusted_reviews:
-    cmd: python scripts/data_cleaning/merge_trusted_reviews.py --input-dir data/trusted/sephora_clean --output data/trusted/reviews_full
+    cmd: >
+      python scripts/data_cleaning/merge_trusted_reviews.py
+      --input-dir data/trusted/sephora_clean
+      --output data/trusted/reviews_full
     deps:
       - scripts/data_cleaning/merge_trusted_reviews.py
       - data/trusted/sephora_clean
@@ -33,7 +44,11 @@ stages:
       - data/trusted/reviews_full
 
   eda_full:
-    cmd: python scripts/EDA/eda_reviews.py --input data/trusted/reviews_full --outdir reports/eda/full --tokenizer albert-base-v2
+    cmd: >
+      python scripts/EDA/eda_reviews.py
+      --input data/trusted/reviews_full
+      --outdir reports/eda/full
+      --tokenizer albert-base-v2
     deps:
       - scripts/EDA/eda_reviews.py
       - data/trusted/reviews_full
@@ -56,7 +71,11 @@ stages:
       - data/trusted/reviews_sample_30pct
 
   eda_sample:
-    cmd: python scripts/EDA/eda_reviews.py --input data/trusted/reviews_sample_30pct --outdir reports/eda/sample_30pct --tokenizer albert-base-v2
+    cmd: >
+      python scripts/EDA/eda_reviews.py
+      --input data/trusted/reviews_sample_30pct
+      --outdir reports/eda/sample_30pct
+      --tokenizer albert-base-v2
     deps:
       - scripts/EDA/eda_reviews.py
       - data/trusted/reviews_sample_30pct
@@ -65,7 +84,11 @@ stages:
       - reports/eda/sample_30pct
 
   eda_compare_full_vs_sample_30pct:
-    cmd: python scripts/EDA/eda_compare.py --full reports/eda/full --sample reports/eda/sample_30pct --outdir reports/eda/compare_full_vs_sample_30pct
+    cmd: >
+      python scripts/EDA/eda_compare.py
+      --full reports/eda/full
+      --sample reports/eda/sample_30pct
+      --outdir reports/eda/compare_full_vs_sample_30pct
     deps:
       - scripts/EDA/eda_compare.py
       - reports/eda/full
@@ -75,66 +98,67 @@ stages:
 
   split_train_val_test:
     cmd: >
-      python scripts/training/prepare_test_parquet.py
+      python scripts/training/split_train_val_test.py
       --input  data/trusted/reviews_sample_30pct
-      --outdir data/exploitation/modelos_input/sample_tvt
+      --outdir data/trusted/splits
+      --text-col review_text_clean
+      --val-size 0.15
+      --test-size 0.15
       --seed 42
     deps:
-      - scripts/training/prepare_test_parquet.py
+      - scripts/training/split_train_val_test.py
       - data/trusted/reviews_sample_30pct
       - params.yaml
     outs:
-      - data/exploitation/modelos_input/sample_tvt
+      - data/trusted/splits/train
+      - data/trusted/splits/val
+      - data/trusted/splits/test
 
-  train_albert_sample:
+  train_albert:
     cmd: >
-      MLFLOW_RUN_NAME=albert_sample_30pct
       python scripts/training/train_albert_from_parquets.py
-      --train data/exploitation/modelos_input/sample_tvt/train
-      --val   data/exploitation/modelos_input/sample_tvt/val
+      --train data/trusted/splits/train
+      --val   data/trusted/splits/val
       --model-out models/albert_sample_30pct
       --params params.yaml
     deps:
       - scripts/training/train_albert_from_parquets.py
-      - data/exploitation/modelos_input/sample_tvt/train
-      - data/exploitation/modelos_input/sample_tvt/val
+      - data/trusted/splits/train
+      - data/trusted/splits/val
       - params.yaml
     outs:
       - models/albert_sample_30pct
 
   evaluate_albert_sample:
     cmd: >
-      PYTHONNOUSERSITE=1 TRANSFORMERS_NO_TF=1 TRANSFORMERS_NO_JAX=1 USE_TF=0 USE_JAX=0
-      /home/pedro/MASTER_BIGDATA/venv/bin/python scripts/training/evaluate_albert.py
-      --model_dir models/albert_sample_30pct
-      --test_parquet data/exploitation/modelos_input/sample_tvt/test
+      python scripts/training/evaluate_albert.py
+      --model_dir models/albert_sample_30pct/frozen
+      --test_parquet data/trusted/splits/test
       --output_dir reports/albert_sample_30pct/eval
     deps:
       - scripts/training/evaluate_albert.py
-      - models/albert_sample_30pct
-      - data/exploitation/modelos_input/sample_tvt/test
+      - models/albert_sample_30pct/frozen
+      - data/trusted/splits/test
+      - params.yaml
     outs:
       - reports/albert_sample_30pct/eval
 
   infer_albert_all:
     cmd: >
       python scripts/training/infer_albert_all.py
-      --model_dir models/albert_sample_30pct
+      --model_dir models/albert_sample_30pct/frozen
       --input_parquet data/trusted/reviews_full
       --output_parquet reports/albert_sample_30pct/infer/predictions.parquet
       --eval_output_dir reports/albert_sample_30pct/infer_eval_full
     deps:
       - scripts/training/infer_albert_all.py
-      - models/albert_sample_30pct
+      - models/albert_sample_30pct/frozen
       - data/trusted/reviews_full
-    params:
-      - infer.batch_size
-      - infer.stream_batch
-      - infer.no_probs
-    metrics:
-      - reports/albert_sample_30pct/infer_eval_full/metrics.json
-    plots:
-      - reports/albert_sample_30pct/infer_eval_full/confusion.csv
+      - params.yaml
+    outs:
+      - reports/albert_sample_30pct/infer
+      - reports/albert_sample_30pct/infer_eval_full
+
 
 
 
