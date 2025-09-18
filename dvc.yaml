@@ -115,10 +115,10 @@ stages:
       - data/exploitation/modelos_input/sample_tvt/test
     outs:
       - reports/albert_sample_30pct/eval
+
   infer_albert_all:
     cmd: >
-      PYTHONNOUSERSITE=1 TRANSFORMERS_NO_TF=1 TRANSFORMERS_NO_JAX=1 USE_TF=0 USE_JAX=0
-      /home/pedro/MASTER_BIGDATA/venv/bin/python scripts/training/infer_albert_all.py
+      python scripts/training/infer_albert_all.py
       --model_dir models/albert_sample_30pct
       --input_parquet data/trusted/reviews_full
       --output_parquet reports/albert_sample_30pct/infer/predictions.parquet
@@ -127,11 +127,14 @@ stages:
       - scripts/training/infer_albert_all.py
       - models/albert_sample_30pct
       - data/trusted/reviews_full
-    outs:
-      - reports/albert_sample_30pct/infer/predictions.parquet
+    params:
+      - infer.batch_size
+      - infer.stream_batch
+      - infer.no_probs
     metrics:
       - reports/albert_sample_30pct/infer_eval_full/metrics.json
     plots:
       - reports/albert_sample_30pct/infer_eval_full/confusion.csv
+
 
 

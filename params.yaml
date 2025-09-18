@@ -3,7 +3,7 @@ model:
     model_name: albert-base-v2
     num_labels: 3
     max_len: 192
-    batch: 128
+    batch: 64
     eval_batch: 128
     epochs: 4
     label_smoothing_factor: 0.05
@@ -17,29 +17,34 @@ model:
     gradient_checkpointing: false
     torch_compile: true
     torch_compile_mode: max-autotune
-    tokenize_num_proc: 6    
+    tokenize_num_proc: 8    
     eval_strategy: epoch
     save_strategy: epoch
     save_total_limit: 2
-    patience: 2
+    patience: 1
     load_best_model_at_end: true
     text_col: review_text_clean
     label_col: label3           # si no existe, se deriva desde rating
     rating_col: rating
     dataloader_num_workers: 8
-    dataloader_prefetch_factor: 2
+    dataloader_prefetch_factor: 4
     dataloader_pin_memory: true
     dataloader_persistent_workers: true
     resume_from_last: true
 training:
   class_weights:
-    mode: manual
-    manual: [1.8, 1.35, 0.6]
+    mode: auto
+    alpha: 1.0
+
+infer:
+  batch_size: 256
+  stream_batch: 20000
+  no_probs: true
 
 mlflow:
   enable: true
   experiment: Sentidata
-  tracking_uri: "file:./mlruns"
-  run_name: albert_sample_30pct
+  tracking_uri: "file:mlruns"     # <- siempre lo normalizará a la raíz del repo
+  run_name: albert_sample_30pct   # <- prefijo fijo; el script le añade _YYYYmmdd_HHMMSS
   tags:
     stage: train

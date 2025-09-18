@@ -166,8 +166,9 @@ stages:
       size: 6506
       nfiles: 7
   split_train_val_test:
-    cmd: "python scripts/training/prepare_test_parquet.py --input  data/trusted/reviews_sample_30pct
-      --outdir data/exploitation/modelos_input/sample_tvt --seed 42\n"
+    cmd: "python scripts/training/split_train_val_test.py --input  data/trusted/reviews_sample_30pct
+      --outdir data/trusted/splits --text-col review_text_clean --val-size 0.15 --test-size
+      0.15 --seed 42\n"
     deps:
     - path: data/trusted/reviews_sample_30pct
       hash: md5
@@ -176,18 +177,28 @@ stages:
       nfiles: 18
     - path: params.yaml
       hash: md5
-      md5: 1cc224cc01c4ed14dd211f948a3e9977
-      size: 1052
-    - path: scripts/training/prepare_test_parquet.py
+      md5: fdb4f363dba88772bc9f992f07b6c364
+      size: 1540
+    - path: scripts/training/split_train_val_test.py
       hash: md5
-      md5: a38fe0bf5ce66343d73258b8d10496f8
-      size: 4480
+      md5: 19e94c622f966604acabd44418aae734
+      size: 4336
     outs:
-    - path: data/exploitation/modelos_input/sample_tvt
+    - path: data/trusted/splits/test
       hash: md5
-      md5: 9dfda8d113e941f09e3d88c93004884e.dir
-      size: 149511739
-      nfiles: 3
+      md5: 8a1def0b2bcd7cd82a5bff495afde1e1.dir
+      size: 22683959
+      nfiles: 14
+    - path: data/trusted/splits/train
+      hash: md5
+      md5: da6ac01cead9a132819ad7cdd9d53157.dir
+      size: 104137336
+      nfiles: 14
+    - path: data/trusted/splits/val
+      hash: md5
+      md5: 9f75b5244b8f0c37b93e9953a22c453d.dir
+      size: 22711700
+      nfiles: 14
   train_albert_sample:
     cmd: "MLFLOW_RUN_NAME=albert_sample_30pct python scripts/training/train_albert_from_parquets.py
       --train data/exploitation/modelos_input/sample_tvt/train --val   data/exploitation/modelos_input/sample_tvt/val
@@ -205,41 +216,106 @@ stages:
       nfiles: 1
     - path: params.yaml
       hash: md5
-      md5: 8567379da3286211436e6485150cff0b
-      size: 1084
+      md5: 57681352881139abfa0a2b1195ab4113
+      size: 1184
     - path: scripts/training/train_albert_from_parquets.py
       hash: md5
-      md5: 812b19737dfdf297a8786ff4aadc0f52
-      size: 31873
+      md5: f17b0ccf01dc7be6e24ce6fb5b3ee8d8
+      size: 22893
     outs:
     - path: models/albert_sample_30pct
       hash: md5
-      md5: 09123040986b9e0055a4cfaf1437d0ec.dir
-      size: 49783739
-      nfiles: 8
+      md5: 9213ed28d73f5937d1cb02afb1abe741.dir
+      size: 336419748
+      nfiles: 29
   evaluate_albert_sample:
-    cmd: "PYTHONNOUSERSITE=1 TRANSFORMERS_NO_TF=1 TRANSFORMERS_NO_JAX=1 USE_TF=0 USE_JAX=0
-      /home/pedro/MASTER_BIGDATA/venv/bin/python scripts/training/evaluate_albert.py
-      --model_dir models/albert_sample_30pct --test_parquet data/exploitation/modelos_input/sample_tvt/test
-      --max_len 176 --output_dir reports/albert_sample_30pct/eval\n"
+    cmd: "python scripts/training/evaluate_albert.py --model_dir models/albert_sample_30pct/frozen
+      --test_parquet data/trusted/splits/test --output_dir reports/albert_sample_30pct/eval\n"
     deps:
-    - path: data/exploitation/modelos_input/sample_tvt/test
+    - path: data/trusted/splits/test
       hash: md5
-      md5: 4e1e5bc784eb65d9efa5d987041826b1.dir
-      size: 22633099
-      nfiles: 1
-    - path: models/albert_sample_30pct
+      md5: 8a1def0b2bcd7cd82a5bff495afde1e1.dir
+      size: 22683959
+      nfiles: 14
+    - path: models/albert_sample_30pct/frozen
       hash: md5
-      md5: 09123040986b9e0055a4cfaf1437d0ec.dir
-      size: 49783739
-      nfiles: 8
+      md5: fcd91fc1d9ce8e2223e1ea146b83b418.dir
+      size: 49782116
+      nfiles: 6
+    - path: params.yaml
+      hash: md5
+      md5: 6b4d463518654d141c6a2bf63f0433d4
+      size: 1541
     - path: scripts/training/evaluate_albert.py
       hash: md5
-      md5: bd058aeb7397b18b388cbcdb4c3e11ce
-      size: 10950
+      md5: fcf09ac1e265bcfdc60b14702bb27e84
+      size: 7916
     outs:
     - path: reports/albert_sample_30pct/eval
       hash: md5
-      md5: 0f978df4d7eb9342b734e76040efb16d.dir
-      size: 2987688
+      md5: 0a7fcb7213348315e042fa4195dc7d5a.dir
+      size: 1070
+      nfiles: 2
+  train_albert:
+    cmd: "python scripts/training/train_albert_from_parquets.py --train data/trusted/splits/train
+      --val   data/trusted/splits/val --model-out models/albert_sample_30pct --params
+      params.yaml\n"
+    deps:
+    - path: data/trusted/splits/train
+      hash: md5
+      md5: da6ac01cead9a132819ad7cdd9d53157.dir
+      size: 104137336
+      nfiles: 14
+    - path: data/trusted/splits/val
+      hash: md5
+      md5: 9f75b5244b8f0c37b93e9953a22c453d.dir
+      size: 22711700
+      nfiles: 14
+    - path: params.yaml
+      hash: md5
+      md5: 6b4d463518654d141c6a2bf63f0433d4
+      size: 1541
+    - path: scripts/training/train_albert_from_parquets.py
+      hash: md5
+      md5: 26a546ff762a2c400ba78a867913b983
+      size: 22305
+    outs:
+    - path: models/albert_sample_30pct
+      hash: md5
+      md5: a934c04bc2d811fb9de192081d42f3cf.dir
+      size: 386201868
+      nfiles: 35
+  infer_albert_all:
+    cmd: "python scripts/training/infer_albert_all.py --model_dir models/albert_sample_30pct/frozen
+      --input_parquet data/trusted/reviews_full --output_parquet reports/albert_sample_30pct/infer/predictions.parquet
+      --eval_output_dir reports/albert_sample_30pct/infer_eval_full\n"
+    deps:
+    - path: data/trusted/reviews_full
+      hash: md5
+      md5: 08549c8975b204736b6d85c1bb6a55a8.dir
+      size: 493840996
+      nfiles: 18
+    - path: models/albert_sample_30pct/frozen
+      hash: md5
+      md5: fcd91fc1d9ce8e2223e1ea146b83b418.dir
+      size: 49782116
       nfiles: 6
+    - path: params.yaml
+      hash: md5
+      md5: 8ab56ab9ffeffd775bc528d68fc4c04e
+      size: 2069
+    - path: scripts/training/infer_albert_all.py
+      hash: md5
+      md5: 830cad9b94241c4879919aeda682820e
+      size: 9234
+    outs:
+    - path: reports/albert_sample_30pct/infer
+      hash: md5
+      md5: 848db68ae73a41f20d212f2dfa96ecc4.dir
+      size: 44334962
+      nfiles: 1
+    - path: reports/albert_sample_30pct/infer_eval_full
+      hash: md5
+      md5: f3a267c30183672f397ef4a9b9735fa0.dir
+      size: 141
+      nfiles: 2
