@@ -134,4 +134,59 @@ stages:
     plots:
       - reports/albert_sample_30pct/infer_eval_full/confusion.csv
 
+  train_rf_sample:
+    cmd: >
+      MLFLOW_RUN_NAME=rf_sample_30pct
+      python scripts/training/train_random_forest.py
+      --train data/exploitation/modelos_input/sample_tvt/train
+      --val   data/exploitation/modelos_input/sample_tvt/val
+      --model-out models/sentiment_rf_sample
+      --params params.yaml
+    deps:
+      - scripts/training/train_random_forest.py
+      - data/exploitation/modelos_input/sample_tvt/train
+      - data/exploitation/modelos_input/sample_tvt/val
+      - params.yaml
+    outs:
+      - models/sentiment_rf_sample
+      - reports/sentiment_rf  
 
+  evaluate_rf_sample:
+    cmd: >
+      python scripts/training/infer_random_forest.py
+      --model-dir models/sentiment_rf_sample
+      --input data/exploitation/modelos_input/sample_tvt/test
+      --output-dir reports/sentiment_rf_sample/eval
+      --text-col review_text --id-col review_id --use-extra 1
+      &&
+      python scripts/evaluation/metrics_overall.py
+      --preds reports/sentiment_rf_sample/eval/test_predictions.parquet
+      --out_dir reports/sentiment_rf_sample/eval
+    deps:
+      - scripts/training/infer_random_forest.py
+      - scripts/evaluation/metrics_overall.py
+      - models/sentiment_rf_sample
+      - data/exploitation/modelos_input/sample_tvt/test
+    outs:
+      - reports/sentiment_rf_sample/eval
+
+  infer_rf_all:
+    cmd: >
+      python scripts/training/infer_random_forest.py
+      --model-dir models/sentiment_rf_sample
+      --input data/trusted/reviews_full
+      --output-dir reports/sentiment_rf_sample/infer
+      --text-col review_text --id-col review_id --use-extra 1
+      &&
+      python scripts/evaluation/metrics_overall.py
+      --preds reports/sentiment_rf_sample/infer/test_predictions.parquet
+      --out_dir reports/sentiment_rf_sample/infer_eval_full
+    deps:
+      - scripts/training/infer_random_forest.py
+      - scripts/evaluation/metrics_overall.py
+      - models/sentiment_rf_sample
+      - data/trusted/reviews_full
+    outs:
+      - reports/sentiment_rf_sample/infer
+      - reports/sentiment_rf_sample/infer_eval_full
+    

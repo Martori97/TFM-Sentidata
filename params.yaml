@@ -1,3 +1,13 @@
+mlflow:
+  enable: true
+  tracking_uri: file:./mlruns
+  experiment: Sentidata
+
+training:
+  class_weights:
+    mode: manual
+    manual: [1.8, 1.35, 0.6]
+
 model:
   albert:
     model_name: albert-base-v2
@@ -10,14 +20,14 @@ model:
     lr: 2e-5
     weight_decay: 0.05
     seed: 42
-    optim: adamw_torch_fused          # <- en 4.56.0 usa adamw_torch (no adamw_hf)
+    optim: adamw_torch_fused
     prefer_cuda: 1
     bf16: true
     fp16: false
     gradient_checkpointing: false
     torch_compile: true
     torch_compile_mode: max-autotune
-    tokenize_num_proc: 6    
+    tokenize_num_proc: 6
     eval_strategy: epoch
     save_strategy: epoch
     save_total_limit: 2
@@ -31,15 +41,27 @@ model:
     dataloader_pin_memory: true
     dataloader_persistent_workers: true
     resume_from_last: true
-training:
-  class_weights:
-    mode: manual
-    manual: [1.8, 1.35, 0.6]
 
-mlflow:
-  enable: true
-  experiment: Sentidata
-  tracking_uri: "file:./mlruns"
-  run_name: albert_sample_30pct
-  tags:
-    stage: train
+  rf:
+    text_col: review_text
+    label_col: null            # si no hay label explícita, se deriva de rating
+    rating_col: rating
+    preproc:
+      use_lemma: true
+      language: en
+    tfidf:
+      max_features: 50000
+      ngram_range: [1, 2]
+      min_df: 3
+      max_df: 0.95
+      stop_words: english
+    features:
+      add_neg_lexicon: true
+      add_contrast_markers: true
+      add_len: true
+    model_params:
+      n_estimators: 100 #inicialmente 400
+      max_depth: null
+      class_weight: balanced
+      n_jobs: -1
+    seed: 42
