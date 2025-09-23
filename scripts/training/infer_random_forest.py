@@ -124,7 +124,7 @@ def main():
         out_df.to_parquet(out_path, index=False)
         outputs.append(str(out_path))
 
-    print("Inferencia RF OK")
+    print("Inferencia RF OKAY")
     for p in outputs:
         print("  ->", p)
 
