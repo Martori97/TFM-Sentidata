@@ -1,0 +1,14 @@
+artifact_uri: file:///home/pedro/MASTER_BIGDATA/TFM/TFM-Sentidata/mlruns/617982129711042592/fbdeb13aa6b74da4aa2903643cf842c9/artifacts
+end_time: 1757777415900
+entry_point_name: ''
+experiment_id: '617982129711042592'
+lifecycle_stage: active
+run_id: fbdeb13aa6b74da4aa2903643cf842c9
+run_name: albert_sample_30pct
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1757776875163
+status: 3
+tags: []
+user_id: pedro

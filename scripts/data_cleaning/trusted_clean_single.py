@@ -1,62 +1,122 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Limpia UNA tabla Sephora (Delta -> Delta) SIN spaCy
-
-import sys, os
+ 
+import sys
+from pathlib import Path
 from pyspark.sql import SparkSession, functions as F, types as T
 from delta import configure_spark_with_delta_pip
-
+ 
+if len(sys.argv) != 3:
+    print("Uso: python trusted_clean_single.py <dataset> <tabla>")
+    sys.exit(1)
+ 
+DATASET = sys.argv[1]
+TABLA   = sys.argv[2]
+ 
+INPUT_PATH  = f"data/landing/{DATASET}/delta/{TABLA}"
+OUTPUT_PATH = f"data/trusted/{DATASET}_clean/{TABLA}"
+ 
 builder = (
     SparkSession.builder
-    .appName("TrustedCleanSingle-Sephora")
-    .config("spark.sql.shuffle.partitions", "8")
-    .config("spark.default.parallelism", "8")
+    .appName(f"trusted_clean_single::{DATASET}/{TABLA}")
+    .master("local[*]")
     .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
     .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+    .config("spark.sql.warehouse.dir", "file:///tmp/spark-warehouse")
+    .config("spark.hadoop.fs.defaultFS", "file:///")
+    .config("spark.driver.memory", "4g")
+    .config("spark.executor.memory", "4g")
 )
 spark = configure_spark_with_delta_pip(builder).getOrCreate()
-
-# Hacer disponible utils_text en los executors
-spark.sparkContext.addPyFile("scripts/data_cleaning/utils_text.py")
-from utils_text import clean_text
-
-clean_udf = F.udf(clean_text, T.StringType())
-
-TEXT_CANDIDATES = ["review_text", "review_body", "text", "review", "content", "reviewText", "body", "comments"]
-RATING_CANDIDATES = ["rating", "stars", "score", "overall", "star_rating"]
-
-def _ensure_columns(df):
-    text_col = next((c for c in TEXT_CANDIDATES if c in df.columns), None)
-    if text_col is None:
-        return None
-    if text_col != "review_text":
-        df = df.withColumnRenamed(text_col, "review_text")
-    rating_col = next((c for c in RATING_CANDIDATES if c in df.columns), None)
-    if rating_col and rating_col != "rating":
-        df = df.withColumnRenamed(rating_col, "rating")
+spark.sparkContext.setLogLevel("WARN")
+ 
+def nz(colname: str, default: str = ""):
+    return F.coalesce(F.col(colname).cast(T.StringType()), F.lit(default))
+ 
+try:
+    print(f"[INFO] Leyendo LANDING/DELTA: {INPUT_PATH}")
+    df = spark.read.format("delta").load(INPUT_PATH)
+ 
+    # 1) Limpieza base
+    df = df.dropna(how="all").dropDuplicates()
+ 
+    # 2) rating → int y filtrado 1–5 (si existe)
     if "rating" in df.columns:
-        df = df.withColumn("rating", F.col("rating").cast("double"))
-    return df
+        df = df.withColumn("rating", F.col("rating").cast(T.IntegerType()))
+        df = df.filter(F.col("rating").isNotNull() & F.col("rating").between(1, 5))
+ 
+    # 3) Normalización de texto (conservar original y crear columna limpia)
+    if "review_text" in df.columns:
+        # Original estandarizado a string
+        df = df.withColumn("review_text", F.col("review_text").cast(T.StringType()))
+ 
+        # Limpieza nativa Spark (rápida y paralelizable)
+        # - quita saltos/tabulaciones → espacios
+        # - trim + lower
+        # - colapsa espacios múltiples
+        df = df.withColumn("review_text_clean",
+            F.regexp_replace(F.col("review_text"), r"[\r\n\t]+", " ")
+        )
+        df = df.withColumn("review_text_clean", F.lower(F.trim(F.col("review_text_clean"))))
+        df = df.withColumn("review_text_clean",
+            F.regexp_replace(F.col("review_text_clean"), r"\s{2,}", " ")
+        )
+ 
+        # Filtro mínimo de calidad
+        df = df.filter(F.col("review_text_clean").isNotNull() & (F.length("review_text_clean") >= 3))
+ 
+        # 4) review_id reproducible (con campos robustos)
+        df = df.withColumn(
+            "review_id",
+            F.sha1(
+                F.concat_ws(
+                    "||",
+                    nz("product_id"),
+                    nz("author_id"),
+                    nz("submission_time"),
+                    nz("review_title"),
+                    nz("review_text_clean")  # importante: sobre texto limpio
+                )
+            )
+        )
+        # deduplicado por id
+        df = df.dropDuplicates(["review_id"])
+    else:
+        print("[WARN] No existe columna 'review_text' en esta tabla.")
+ 
+    # 5) Quality report (ligero)
+    print("\n=== TRUSTED | QUALITY REPORT ===")
+    total = df.count()
+    print(f"Rows (trusted): {total}")
+ 
+    if "rating" in df.columns:
+        print("Distribución de ratings:")
+        df.groupBy("rating").count().orderBy("rating").show()
+ 
+    if "review_text_clean" in df.columns:
+        null_text = df.filter((F.col("review_text_clean").isNull()) | (F.length("review_text_clean") == 0)).count()
+        print(f"review_text_clean vacíos: {null_text}")
+ 
+    if "review_id" in df.columns:
+        dupl = df.groupBy("review_id").count().filter(F.col("count") > 1).count()
+        print(f"Duplicados por review_id: {dupl}")
+ 
+    # 6) Guardar en TRUSTED (Delta). Conserva columnas originales + limpias + review_id
+    print(f"\n[INFO] Guardando TRUSTED/DELTA en: {OUTPUT_PATH}")
+    (
+        df.write
+        .format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .save(OUTPUT_PATH)
+    )
+ 
+    print(f"[OK] Limpieza completada para {DATASET}/{TABLA} → {OUTPUT_PATH}")
+ 
+except Exception as e:
+    print(f"[ERROR] Procesando {DATASET}/{TABLA}: {e}")
+    sys.exit(2)
+finally:
+    spark.stop()
 
-def clean_table(input_delta, output_delta):
-    df = spark.read.format("delta").load(input_delta)
 
-    if "review_id" not in df.columns:
-        df = df.withColumn("review_id", F.monotonically_increasing_id())
-
-    df = _ensure_columns(df)
-    if df is None:
-        print(f"[SKIP] {input_delta} sin columna de texto; no se genera trusted.")
-        return
-
-    if "review_text_clean" not in df.columns:
-        df = df.withColumn("review_text_clean", clean_udf(F.col("review_text")))
-    df = df.withColumn("text_len", F.length(F.col("review_text_clean")))
-
-    df.repartition(4).write.format("delta").mode("overwrite").save(output_delta)
-    print(f"[OK] Trusted (clean+len) -> {output_delta}")
-
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Uso: trusted_clean_single.py <input_delta_dir> <output_delta_dir>")
-        sys.exit(1)
-    clean_table(sys.argv[1], sys.argv[2])

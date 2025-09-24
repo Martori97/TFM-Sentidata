@@ -1,0 +1,85 @@
+sampling:
+  frac: 0.30
+  by: sentiment_category
+  seed: 42
+  format: delta
+  coalesce: 64
+  balance: true   # muestreo balanceado por clase
+
+eda_compare_full_vs_30:
+  a: data/trusted/reviews_full
+  b: data/trusted/reviews_sample_30pct
+  outdir: reports/eda/compare_full_vs_30
+  by: sentiment_category
+  input_format: auto
+  tokenizer: albert-base-v2
+  sample_rows: 120000
+  max_len: 128
+  clip_tokens: true
+  silence_tokenizer_warnings: true
+
+model:
+  albert:
+    num_labels: 3
+    labels: ["negative", "neutral", "positive"]   # ORDEN CANÓNICO
+    label2id:
+      negative: 0
+      neutral: 1
+      positive: 2
+    id2label:
+      "0": "negative"
+      "1": "neutral"
+      "2": "positive"
+    clean_output: true
+    model_name: albert-base-v2
+    max_len: 192
+    batch: 64
+    eval_batch: 128
+    epochs: 4
+    label_smoothing_factor: 0.05
+    lr: 2e-5
+    weight_decay: 0.05
+    seed: 42
+    optim: adamw_torch_fused          # en HF>=4.56 usar adamw_torch si hace falta
+    prefer_cuda: 1
+    bf16: true
+    fp16: false
+    gradient_checkpointing: false
+    torch_compile: true
+    torch_compile_mode: max-autotune
+    tokenize_num_proc: 8
+    eval_strategy: epoch
+    save_strategy: epoch
+    save_total_limit: 2
+    patience: 2
+    load_best_model_at_end: true
+    text_col: review_text_clean
+    label_col: label3                 # si no existe, se deriva desde rating
+    rating_col: rating
+    dataloader_num_workers: 8
+    dataloader_prefetch_factor: 4
+    dataloader_pin_memory: true
+    dataloader_persistent_workers: true
+    resume_from_last: true
+  class_weights:
+    mode: manual
+    values: [1.00, 1.30, 1.00]        # >1 exagera minoritarias (mejora neutral)
+
+infer:
+  model_dir: models/albert_sample_30pct
+  input_parquet: data/trusted/reviews_full
+  output_parquet: reports/albert_sample_30pct/infer/predictions.parquet
+  eval_output_dir: reports/albert_sample_30pct/infer_eval_full
+  text_col: review_text_clean
+  id_col: review_id
+  label_col: label             # si falta, el script lo derivará desde 'rating'
+  batch_size: 1280
+  max_length: 192
+
+mlflow:
+  enable: true
+  experiment: Sentidata
+  tracking_uri: "file:mlruns"
+  run_name: albert_sample_30pct
+  tags:
+    stage: train

@@ -1,0 +1,85 @@
+Resumen ALBERT (3 clases)
+
+Datos y split (Sephora · reviews_0_250):
+
+Total: 600.648 reseñas.
+
+Train: ~510.550 (85%) · Val: 90.098 (15%) · Test (hold-out): 90.098 (15%, fijado con seed=42).
+
+Etiquetado 3 clases desde rating: neg=0 (1–2★), neu=1 (3★), pos=2 (4–5★).
+
+Fuerte desbalanceo a favor de positivo.
+
+Resultados en validación (val):
+
+Accuracy: 0,891
+
+F1 macro: 0,765
+
+F1 por clase: neg 0,830 · neu 0,517 · pos 0,950
+
+Observación: neutral es la clase más difícil; positivo sobresale (desbalanceo + señal clara).
+
+Resultados en test (hold-out):
+
+Accuracy: 0,898
+
+F1 macro: 0,784
+
+F1 por clase: neg 0,856 · neu 0,544 · pos 0,952
+
+Generalización: gap pequeño (Val→Test): +0,7 pp en accuracy y +1,9 pp en F1-macro. El modelo generaliza bien dentro del dominio Sephora.
+
+Inferencia a escala (todas las particiones):
+
+Pipeline DVC infiere en 5 particiones (reviews_0_250 … 1250_end) y hace merge en
+reports/albert_subset_all/predictions_all.parquet.
+
+(Opcional en la memoria) Métricas por partición en metrics_partitions.csv y globales en metrics_overall.json + confusion_all.png.
+
+Conclusión breve:
+ALBERT ofrece alto rendimiento global (accuracy ≈ 0,90; F1-macro ≈ 0,78) con muy buen desempeño en positivo, sólido en negativo y mejorable en neutral (clase intrínsecamente ambigua). El pequeño gap Val↔Test respalda la estabilidad del modelo.
+
+Versión extendida (para sección de resultados)
+
+Configuración.
+Se entrenó ALBERT para análisis de sentimiento 3-clases sobre Sephora. A partir de rating (1–5) se derivó label3: 1–2→neg (0), 3→neu (1), 4–5→pos (2). Sobre la partición reviews_0_250 (600.648 reseñas), se hicieron dos cortes:
+
+Corte interno (para entrenamiento): 85% train / 15% val (estratificado por clase).
+
+Corte externo y fijo (para evaluación): 15% test con seed=42, guardado en Parquet.
+
+Validación.
+El modelo alcanza 0,891 de accuracy y 0,765 de F1-macro en validación. Por clase: pos 0,950, neg 0,830, neu 0,517. La clase neutral sufre por ambigüedad semántica y menor soporte.
+
+Evaluación en test (hold-out).
+En el conjunto de test (90.098 reseñas), el modelo obtiene 0,898 de accuracy y 0,784 de F1-macro (neg 0,856 · neu 0,544 · pos 0,952).
+El gap Val→Test es reducido (+0,7 pp en accuracy; +1,9 pp en F1-macro), lo que indica buena generalización dentro de dominio y ausencia de sobreajuste apreciable.
+
+Inferencia masiva y análisis agregado.
+Con DVC, se infirió en todas las particiones de trusted y se consolidó en predictions_all.parquet. Cuando están disponibles, se reportan métricas por partición (para detectar heterogeneidad entre splits) y métricas globales + matriz de confusión del conjunto completo.
+
+Interpretación.
+
+El excelente rendimiento en positivo refleja tanto el desbalanceo (mayor representación) como la señal léxica clara de reseñas satisfechas.
+
+Neutral es la clase crítica: típicamente mezcla opiniones mixtas, ironía ligera o reseñas cortas/escasas, lo que complica la decisión; es habitual que estos casos se confundan con positivo/negativo cercanos al umbral.
+
+Aun así, el F1-macro ≈ 0,78 muestra un equilibrio razonable considerando la dificultad de la clase media.
+
+Trabajo futuro (breve y accionable).
+
+Mejorar neutral: class weights más agresivos, focal loss o data augmentation de la clase 3★.
+
+Umbrales calibrados: ajustar decisión con calibración de probas o costos asimétricos si “neutral” es negocio-crítico.
+
+Contexto y long-form: probar Longformer/DeBERTa/Distil según restricciones de latencia y longitud de reseña.
+
+Análisis de error: revisar top-errores de neutral (palabras clave, longitud, sarcasmo) y refinar el cleaning.
+
+Texto para tabla (opcional)
+Conjunto	Accuracy	F1-macro	F1-neg	F1-neu	F1-pos	n
+Validación	0,891	0,765	0,830	0,517	0,950	90.098
+Test	0,898	0,784	0,856	0,544	0,952	90.098
+
+Nota: cifras redondeadas a 3 decimales; test y val con el mismo tamaño por construcción (15%).
