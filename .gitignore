@@ -47,3 +47,23 @@ notebooks/*_out.ipynb
 # Ignore Windows ADS leftovers
 *:Zone.Identifier
 reports/eda/compare_full_vs_sample_30pct
+.env
+data/landing/
+data/trusted/
+data/exploitation/
+
+data/
+models/
+.dvc/cache/
+report/
+venv/
+*.parquet
+*.delta
+*.pt
+*.bin
+*.safetensors
+notebooks/*_out.ipynb
+
+# Ignore Windows ADS leftovers
+*:Zone.Identifier
+reports/eda/compare_full_vs_sample_30pct

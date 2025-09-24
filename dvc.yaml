@@ -202,13 +202,3 @@ stages:
       - reports/albert_sample_30pct/eval_rest
 
 
-    
-  build_model_input:
-    cmd: python scripts/data_cleaning/filtrar_reviews_base.py
-    deps:
-    - data/trusted/sephora_clean
-    - scripts/data_cleaning/filtrar_reviews_base.py
-    outs:
-    - data/exploitation/modelos_input/reviews_base_csv
-    - data/exploitation/modelos_input/reviews_base_delta
-    - data/exploitation/modelos_input/reviews_base_parquet
