@@ -52,32 +52,32 @@ stages:
     outs:
     - path: data/trusted/sephora_clean/product_info
       hash: md5
-      md5: ebae2388788c8eebfd939e92bc859f7c.dir
+      md5: c905a19719f033ddccec1a68bcef2ad7.dir
       size: 2837914
       nfiles: 10
     - path: data/trusted/sephora_clean/reviews_0_250
       hash: md5
-      md5: f86db7d8a9eef13270d0cfedf7464f63.dir
+      md5: 716b3b37465f3d6ee1231068c7f3dd4d.dir
       size: 267928038
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_1250_end
       hash: md5
-      md5: def28e8662013b12ca62beec37359409.dir
+      md5: 6e72c1d952c2195505ed3c10d719671a.dir
       size: 24234532
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_250_500
       hash: md5
-      md5: 45dea62b129e43f393abe5e63f53df30.dir
+      md5: 651412b39ced08b32f61ddaf40fdd62b.dir
       size: 95799300
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_500_750
       hash: md5
-      md5: 0f5279830323f43ddbb9ff1067d47f38.dir
+      md5: eb75b90c288a3e12ae4f23bd3f9d969a.dir
       size: 54040580
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_750_1250
       hash: md5
-      md5: 2f91c9b029b8c684e12aa9e06a2d382c.dir
+      md5: 4b19340bdf86d8690d11600f086387b8.dir
       size: 56044298
       nfiles: 48
   merge_trusted_reviews:
