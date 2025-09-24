@@ -1,141 +1,335 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import argparse, json, os
-import pandas as pd
-import numpy as np
-from scipy.stats import chisquare
 
-def parse_args():
-    p = argparse.ArgumentParser()
-    p.add_argument("--full", required=True, help="carpeta EDA full (report/eda/full)")
-    p.add_argument("--sample", required=True, help="carpeta EDA sample (report/eda/sample_XX)")
-    p.add_argument("--outdir", required=True)
-    p.add_argument("--chiN", type=int, default=100_000,
-                   help="N sintético para convertir % a cuentas enteras en Chi²")
-    return p.parse_args()
+import os
+import json
+import argparse
+from pathlib import Path
+from typing import Optional, Tuple
 
-def safe_mkdir(p):
-    os.makedirs(p, exist_ok=True)
+from pyspark.sql import SparkSession, DataFrame, functions as F
 
-def pct_to_counts(pcts, N):
+# --- plotting/tokenizer (opcionales) ---
+try:
+    import matplotlib.pyplot as plt
+    HAS_MPL = True
+except Exception:
+    HAS_MPL = False
+
+try:
+    from transformers import AutoTokenizer
+    from transformers import logging as hf_logging
+    HAS_HF = True
+except Exception:
+    HAS_HF = False
+
+
+# =========================
+# Util
+# =========================
+def to_bool(x: str) -> bool:
+    return str(x).strip().lower() in {"true", "1", "yes", "y", "t"}
+
+
+# =========================
+# Spark / Delta helpers
+# =========================
+def build_spark(app: str = "eda_compare") -> SparkSession:
+    """Crea SparkSession con extensiones Delta si están disponibles."""
+    try:
+        from delta import configure_spark_with_delta_pip
+        builder = (
+            SparkSession.builder
+            .appName(app)
+            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+            .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+            .config("spark.driver.memory", "4g")
+            .config("spark.sql.shuffle.partitions", "8")
+        )
+        return configure_spark_with_delta_pip(builder).getOrCreate()
+    except Exception:
+        return (
+            SparkSession.builder
+            .appName(app)
+            .config("spark.driver.memory", "4g")
+            .config("spark.sql.shuffle.partitions", "8")
+        ).getOrCreate()
+
+
+def is_delta(path: str) -> bool:
+    return os.path.exists(os.path.join(path, "_delta_log"))
+
+
+def read_any(spark: SparkSession, path: str, force: Optional[str]) -> DataFrame:
+    """Lee Delta/Parquet con autodetección o formato forzado."""
+    fmt = "delta" if (force == "delta" or (force == "auto" and is_delta(path))) else (
+          "parquet" if force in {"parquet", "auto"} else force)
+    return spark.read.format(fmt).load(path)
+
+
+# =========================
+# Lógica EDA
+# =========================
+def ensure_by_column(df: DataFrame, by: Optional[str]) -> Tuple[DataFrame, str]:
     """
-    Convierte un vector de porcentajes a cuentas enteras que suman exactamente N.
-    Maneja NaNs (los trata como 0). Si hay diferencia por redondeo, la ajusta
-    en la categoría de mayor peso absoluto.
+    Garantiza columna de clase para comparar.
+    - Si `by` existe, se usa.
+    - Si no, probar ['sentiment_category','sentiment','label'].
+    - Si no, derivar 'sentiment_category' desde 'stars'/'rating' si existen.
     """
-    p = np.nan_to_num(np.asarray(pcts, dtype=float), nan=0.0)
-    counts = np.rint(p / 100.0 * N).astype(int)
-    diff = int(N - counts.sum())
-    if diff != 0 and counts.size > 0:
-        # ajustamos en la categoría más grande (o la primera si hay empate)
-        idx = int(np.argmax(counts))
-        counts[idx] += diff
-        # evitar negativos por redondeos extremos
-        if counts[idx] < 0:
-            # si se fue negativo (muy raro), redistribuir de forma segura
-            deficit = -counts[idx]
-            counts[idx] = 0
-            for j in np.argsort(-counts):  # de mayor a menor
-                if deficit == 0: break
-                take = min(counts[j], deficit)
-                counts[j] -= take
-                deficit -= take
-    return counts
+    cols = set(df.columns)
+    if by and by in cols:
+        return df, by
 
-def chi2_from_pct(p_full, p_sample, N=100_000):
+    for c in ["sentiment_category", "sentiment", "label"]:
+        if c in cols:
+            return df, c
+
+    num_col = "stars" if "stars" in cols else ("rating" if "rating" in cols else None)
+    if num_col:
+        df2 = df.withColumn(
+            "sentiment_category",
+            F.when(F.col(num_col) <= 2, F.lit("negative"))
+             .when(F.col(num_col) == 3, F.lit("neutral"))
+             .otherwise(F.lit("positive"))
+        )
+        return df2, "sentiment_category"
+
+    raise SystemExit(
+        f"[eda_compare] No encuentro columna de clases (by='{by}'). "
+        f"Disponibles: {sorted(cols)}"
+    )
+
+
+def counts_by(df: DataFrame, by_col: str) -> DataFrame:
     """
-    Aplica Chi² sobre cuentas sintéticas derivadas de %,
-    garantizando mismas sumas y evitando problemas numéricos.
+    Recuentos y porcentaje por clase dentro del propio dataset.
+    Implementado sin ventanas para evitar avisos y single-partition.
     """
-    if len(p_full) == 0 or len(p_sample) == 0:
-        return {"chi2": None, "p_value": None, "N": int(N), "note": "distribuciones vacías"}
+    counts = df.groupBy(by_col).count().cache()
+    total = counts.agg(F.sum("count").alias("total"))
+    out = (
+        counts.join(total)
+              .withColumn("pct", F.col("count") / F.col("total"))
+              .drop("total")
+              .orderBy(F.desc("count"))
+    )
+    return out
 
-    obs = pct_to_counts(p_sample, N)
-    exp = pct_to_counts(p_full,  N)
 
-    mask = (exp > 0) | (obs > 0)
-    if mask.sum() < 2:
-        return {"chi2": None, "p_value": None, "N": int(N), "note": "insuficiente soporte"}
+def save_spark_df_csv(sdf: DataFrame, path: Path):
+    """Guarda un único CSV (coalesce 1) para consulta fácil."""
+    (sdf.coalesce(1)
+        .write.mode("overwrite")
+        .option("header", True)
+        .csv(str(path)))
 
-    chi, p = chisquare(f_obs=obs[mask], f_exp=exp[mask])
-    return {"chi2": float(chi), "p_value": float(p), "N": int(N)}
 
-def diff_distribution(full_csv, sample_csv, key_col, out_csv):
-    f = pd.read_csv(full_csv)
-    s = pd.read_csv(sample_csv)
-    merged = pd.merge(f, s, on=key_col, how="outer", suffixes=("_full", "_sample")).fillna(0.0)
-    merged["diff_pct"] = merged["pct_sample"] - merged["pct_full"]
-    merged.to_csv(out_csv, index=False)
-    return merged
+def detect_text_col(df: DataFrame) -> Optional[str]:
+    for c in ["review_text_clean", "review_text"]:
+        if c in df.columns:
+            return c
+    return None
 
-def main():
-    args = parse_args()
-    safe_mkdir(args.outdir)
 
-    # 1) Sentimiento
-    sent_full = os.path.join(args.full, "dist_sentiment.csv")
-    sent_samp = os.path.join(args.sample, "dist_sentiment.csv")
-    if os.path.exists(sent_full) and os.path.exists(sent_samp):
-        diff_sent = diff_distribution(sent_full, sent_samp, "sentiment_category",
-                                      os.path.join(args.outdir, "diff_sentiment.csv"))
-        chi_res = chi2_from_pct(diff_sent["pct_full"].values, diff_sent["pct_sample"].values, N=args.chiN)
-        with open(os.path.join(args.outdir, "chi2_sentiment.json"), "w") as f:
-            json.dump(chi_res, f, indent=2)
+def tokenize_lengths(rows, tokenizer_name: str, text_key: str,
+                     max_len: Optional[int], clip_tokens: bool) -> Optional[list]:
+    if not HAS_HF or not HAS_MPL:
+        print("[eda_compare] Aviso: no hay transformers/matplotlib; omito tokenización.")
+        return None
 
-    # 2) Categorías
-    cat_full = os.path.join(args.full, "dist_category.csv")
-    cat_samp = os.path.join(args.sample, "dist_category.csv")
-    if os.path.exists(cat_full) and os.path.exists(cat_samp):
-        diff_distribution(cat_full, cat_samp, "secondary_category",
-                          os.path.join(args.outdir, "diff_category.csv"))
+    tok = AutoTokenizer.from_pretrained(tokenizer_name)
 
-    # 3) Longitud caracteres (stats agregadas)
-    len_full = os.path.join(args.full, "len_stats.json")
-    len_samp = os.path.join(args.sample, "len_stats.json")
-    if os.path.exists(len_full) and os.path.exists(len_samp):
-        lf = json.load(open(len_full))
-        ls = json.load(open(len_samp))
-        with open(os.path.join(args.outdir, "diff_len.json"), "w") as f:
-            json.dump({
-                "mean_diff": (ls.get("mean") - lf.get("mean")) if ("mean" in ls and "mean" in lf) else None,
-                "p50_diff":  (ls.get("p50")  - lf.get("p50"))  if ("p50"  in ls and "p50"  in lf) else None,
-                "p95_diff":  (ls.get("p95")  - lf.get("p95"))  if ("p95"  in ls and "p95"  in lf) else None,
-                "p99_diff":  (ls.get("p99")  - lf.get("p99"))  if ("p99"  in ls and "p99"  in lf) else None,
-            }, f, indent=2)
+    lens = []
+    for r in rows:
+        t = r[text_key]
+        if t is None:
+            continue
+        enc = tok(t, add_special_tokens=True, truncation=False)
+        L = len(enc["input_ids"])
+        if clip_tokens and max_len is not None:
+            L = min(L, max_len)
+        lens.append(L)
+    return lens
 
-    # 4) TOKENS (hist Chi² + diffs de percentiles)
-    tok_full_stats = os.path.join(args.full, "token_stats.json")
-    tok_samp_stats = os.path.join(args.sample, "token_stats.json")
-    hist_full = os.path.join(args.full, "tokens_hist.csv")
-    hist_samp = os.path.join(args.sample, "tokens_hist.csv")
 
-    if os.path.exists(hist_full) and os.path.exists(hist_samp):
-        hf = pd.read_csv(hist_full)
-        hs = pd.read_csv(hist_samp)
-        # Alinear por bins (asumimos mismos edges por mismo --token-bins)
-        merged = hf.merge(hs, on=["bin_left", "bin_right"], how="outer",
-                          suffixes=("_full", "_sample")).fillna(0.0)
-        merged.to_csv(os.path.join(args.outdir, "tokens_hist_merged.csv"), index=False)
+def plot_hist(data: list, title: str, out_png: Path):
+    if not HAS_MPL or not data:
+        return
+    import matplotlib.pyplot as plt  # seguridad por si HAS_MPL cambió
+    plt.figure()
+    plt.hist(data, bins=60)
+    plt.title(title)
+    plt.xlabel("token length")
+    plt.ylabel("count")
+    plt.tight_layout()
+    plt.savefig(out_png)
+    plt.close()
 
-        chi_tok = chi2_from_pct(merged["pct_full"].values, merged["pct_sample"].values, N=args.chiN)
-        with open(os.path.join(args.outdir, "chi2_tokens.json"), "w") as f:
-            json.dump(chi_tok, f, indent=2)
 
-    if os.path.exists(tok_full_stats) and os.path.exists(tok_samp_stats):
-        tf = json.load(open(tok_full_stats))
-        ts = json.load(open(tok_samp_stats))
-        with open(os.path.join(args.outdir, "diff_tokens.json"), "w") as f:
-            json.dump({
-                "mean_diff": (ts.get("mean") - tf.get("mean")) if ("mean" in ts and "mean" in tf) else None,
-                "p50_diff":  (ts.get("p50")  - tf.get("p50"))  if ("p50"  in ts and "p50"  in tf) else None,
-                "p95_diff":  (ts.get("p95")  - tf.get("p95"))  if ("p95"  in ts and "p95"  in tf) else None,
-                "p99_diff":  (ts.get("p99")  - tf.get("p99"))  if ("p99"  in ts and "p99"  in tf) else None,
-                "max_diff":  (ts.get("max")  - tf.get("max"))  if ("max"  in ts and "max"  in tf) else None,
-                "tokenizer_full": tf.get("tokenizer"),
-                "tokenizer_sample": ts.get("tokenizer")
-            }, f, indent=2)
+def run_compare(
+    a_path: str,
+    b_path: str,
+    outdir: str,
+    by: Optional[str],
+    input_format: str,
+    tokenizer_name: Optional[str],
+    sample_rows: int,
+    max_len: Optional[int],
+    clip_tokens: bool,
+    silence_tokenizer_warnings: bool,
+):
+    if silence_tokenizer_warnings and HAS_HF:
+        hf_logging.set_verbosity_error()
 
-    print(f"✅ Comparativa EDA guardada en {args.outdir}")
+    spark = build_spark()
+    outdir_p = Path(outdir)
+    outdir_p.mkdir(parents=True, exist_ok=True)
+
+    # Leer datasets
+    A = read_any(spark, a_path, input_format)
+    B = read_any(spark, b_path, input_format)
+
+    # Asegurar columna de clase y alinear nombres
+    A, by_col = ensure_by_column(A, by)
+    B, _      = ensure_by_column(B, by_col)
+
+    # --- tamaños ---
+    nA = A.count()
+    nB = B.count()
+    (outdir_p / "sizes.json").write_text(json.dumps({"A": nA, "B": nB}, indent=2))
+
+    # --- distribuciones por clase (counts + pct, separadas por dataset) ---
+    A_cls = counts_by(A, by_col).withColumn("dataset", F.lit("A"))
+    B_cls = counts_by(B, by_col).withColumn("dataset", F.lit("B"))
+    classes = A_cls.unionByName(B_cls, allowMissingColumns=True)
+    save_spark_df_csv(classes, outdir_p / "class_distribution")
+
+    # Pivots lado a lado (counts y pct)
+    pivot_counts = (
+        classes.groupBy("dataset")
+               .pivot(by_col)
+               .agg(F.first("count").cast("long"))
+               .orderBy("dataset")
+    )
+    save_spark_df_csv(pivot_counts, outdir_p / "class_counts_pivot")
+
+    pivot_pct = (
+        classes.groupBy("dataset")
+               .pivot(by_col)
+               .agg(F.first("pct"))
+               .orderBy("dataset")
+    )
+    save_spark_df_csv(pivot_pct, outdir_p / "class_pct_pivot")
+
+    # --- Longitud de tokens (opcional) ---
+    if tokenizer_name:
+        text_col_A = detect_text_col(A)
+        text_col_B = detect_text_col(B)
+
+        if text_col_A and text_col_B:
+            A_samp = (A.select(text_col_A)
+                        .where(F.col(text_col_A).isNotNull())
+                        .limit(sample_rows)
+                        .collect())
+            B_samp = (B.select(text_col_B)
+                        .where(F.col(text_col_B).isNotNull())
+                        .limit(sample_rows)
+                        .collect())
+
+            A_len = tokenize_lengths(A_samp, tokenizer_name, text_col_A, max_len, clip_tokens)
+            B_len = tokenize_lengths(B_samp, tokenizer_name, text_col_B, max_len, clip_tokens)
+
+            suffix = f"{tokenizer_name}"
+            if clip_tokens and max_len is not None:
+                suffix += f"_clip{max_len}"
+
+            if A_len:
+                plot_hist(A_len, f"A token lengths ({suffix})",
+                          outdir_p / f"A_token_lengths_{suffix}.png")
+            if B_len:
+                plot_hist(B_len, f"B token lengths ({suffix})",
+                          outdir_p / f"B_token_lengths_{suffix}.png")
+
+            # Stats básicos
+            import statistics as st
+            stats = {}
+            if A_len:
+                A_sorted = sorted(A_len)
+                stats["A"] = {
+                    "count": len(A_len),
+                    "mean": float(st.mean(A_len)),
+                    "median": float(st.median(A_len)),
+                    "p95": float(A_sorted[int(0.95 * len(A_sorted)) - 1]) if len(A_sorted) > 0 else None
+                }
+            if B_len:
+                B_sorted = sorted(B_len)
+                stats["B"] = {
+                    "count": len(B_len),
+                    "mean": float(st.mean(B_len)),
+                    "median": float(st.median(B_len)),
+                    "p95": float(B_sorted[int(0.95 * len(B_sorted)) - 1]) if len(B_sorted) > 0 else None
+                }
+            (outdir_p / "token_length_stats.json").write_text(json.dumps(stats, indent=2))
+        else:
+            print(f"[eda_compare] No encuentro columna de texto en A/B (busco 'review_text_clean' o 'review_text'). Omito tokenización.")
+
+    # --- Export de 10 filas de ejemplo de cada dataset ---
+    def save_head(df: DataFrame, name: str):
+        cols = [c for c in [
+            "review_id", "product_id", "brand_name", "product_name",
+            "rating", "stars", "review_text_clean", "review_text", by_col
+        ] if c in df.columns]
+        head = df.select(*cols).limit(10)
+        save_spark_df_csv(head, outdir_p / f"head_{name}")
+
+    save_head(A, "A")
+    save_head(B, "B")
+
+    print(f"✅ EDA compare listo en {outdir_p} (by={by_col}, sizes: A={nA:,}, B={nB:,})")
+    spark.stop()
+
+
+# =========================
+# CLI
+# =========================
+def parse_cli():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--a", required=True, help="Ruta dataset A (Delta/Parquet)")
+    ap.add_argument("--b", required=True, help="Ruta dataset B (Delta/Parquet)")
+    ap.add_argument("--outdir", required=True, help="Carpeta de salida")
+    ap.add_argument("--by", default=None, help="Columna de clase (auto-deriva si falta)")
+    ap.add_argument("--input-format", default="auto", choices=["auto", "delta", "parquet"])
+    ap.add_argument("--tokenizer", default=None,
+                    help="Tokenizer HF para longitudes (opcional). Ej: albert-base-v2")
+    ap.add_argument("--sample-rows", type=int, default=100000,
+                    help="Máx. filas a tokenizar para histograma (por dataset)")
+    ap.add_argument("--max-len", type=int, default=128,
+                    help="Longitud tope para el histograma (p. ej. 128/192/224/512)")
+    # Booleanos como strings para usarlos desde params.yaml
+    ap.add_argument("--clip-tokens", default="false",
+                    help="true/false: recortar longitudes al tope (--max-len)")
+    ap.add_argument("--silence-tokenizer-warnings", default="true",
+                    help="true/false: silenciar warnings de transformers")
+    return ap.parse_args()
+
 
 if __name__ == "__main__":
-    main()
+    args = parse_cli()
+    run_compare(
+        a_path=args.a,
+        b_path=args.b,
+        outdir=args.outdir,
+        by=args.by,
+        input_format=args.input_format,
+        tokenizer_name=args.tokenizer,
+        sample_rows=args.sample_rows,
+        max_len=args.max_len,
+        clip_tokens=to_bool(args.clip_tokens),
+        silence_tokenizer_warnings=to_bool(args.silence_tokenizer_warnings),
+    )
+
+
+
+
+

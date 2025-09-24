@@ -1,5 +1,4 @@
 stages:
-
   ingest_kaggle:
     cmd: >
       python scripts/data_ingestion/descarga_kaggle_reviews.py
@@ -23,26 +22,39 @@ stages:
   trusted_clean_driver:
     cmd: >
       python scripts/data_cleaning/trusted_clean_driver.py
-      --input data/landing/sephora/delta
+      --input  data/landing/sephora/delta
       --output data/trusted/sephora_clean
     deps:
       - scripts/data_cleaning/trusted_clean_driver.py
       - scripts/data_cleaning/trusted_clean_single.py
       - data/landing/sephora/delta
     outs:
-      - data/trusted/sephora_clean
+      - data/trusted/sephora_clean/product_info
+      - data/trusted/sephora_clean/reviews_0_250
+      - data/trusted/sephora_clean/reviews_250_500
+      - data/trusted/sephora_clean/reviews_500_750
+      - data/trusted/sephora_clean/reviews_750_1250
+      - data/trusted/sephora_clean/reviews_1250_end
 
   merge_trusted_reviews:
     cmd: >
       python scripts/data_cleaning/merge_trusted_reviews.py
       --input-dir data/trusted/sephora_clean
-      --output data/trusted/reviews_full
+      --output    data/trusted/reviews_full
+      --format delta
+      --coalesce  64
     deps:
       - scripts/data_cleaning/merge_trusted_reviews.py
-      - data/trusted/sephora_clean
+      - data/trusted/sephora_clean/product_info
+      - data/trusted/sephora_clean/reviews_0_250
+      - data/trusted/sephora_clean/reviews_250_500
+      - data/trusted/sephora_clean/reviews_500_750
+      - data/trusted/sephora_clean/reviews_750_1250
+      - data/trusted/sephora_clean/reviews_1250_end
     outs:
       - data/trusted/reviews_full
 
+  # === EDA FULL ===
   eda_full:
     cmd: >
       python scripts/EDA/eda_reviews.py
@@ -56,109 +68,183 @@ stages:
     outs:
       - reports/eda/full
 
-  sample_reviews:
+  # === SAMPLE ESTRATIFICADO / BALANCEADO ===
+  trusted_sample_30:
     cmd: >
       python scripts/data_cleaning/sample_reviews.py
-      --input data/trusted/reviews_full
+      --input  data/trusted/reviews_full
       --output data/trusted/reviews_sample_30pct
-      --frac 0.30
-      --by labels
-      --seed 42
+      --frac ${sampling.frac}
+      --by ${sampling.by}
+      --format ${sampling.format}
+      --seed ${sampling.seed}
+      --coalesce ${sampling.coalesce}
+      --balance ${sampling.balance}
     deps:
       - scripts/data_cleaning/sample_reviews.py
       - data/trusted/reviews_full
     outs:
       - data/trusted/reviews_sample_30pct
+    params:
+      - sampling
 
-  eda_sample:
+  # === EDA DEL SAMPLE ===
+  eda_sample_30:
     cmd: >
       python scripts/EDA/eda_reviews.py
       --input data/trusted/reviews_sample_30pct
-      --outdir reports/eda/sample_30pct
+      --outdir reports/eda/sample_30
       --tokenizer albert-base-v2
     deps:
       - scripts/EDA/eda_reviews.py
       - data/trusted/reviews_sample_30pct
       - params.yaml
     outs:
-      - reports/eda/sample_30pct
+      - reports/eda/sample_30
 
-  eda_compare_full_vs_sample_30pct:
+  # === COMPARATIVA FULL vs SAMPLE (parametrizada) ===
+  eda_compare_full_vs_30:
     cmd: >
       python scripts/EDA/eda_compare.py
-      --full reports/eda/full
-      --sample reports/eda/sample_30pct
-      --outdir reports/eda/compare_full_vs_sample_30pct
+      --a ${eda_compare_full_vs_30.a}
+      --b ${eda_compare_full_vs_30.b}
+      --outdir ${eda_compare_full_vs_30.outdir}
+      --by ${eda_compare_full_vs_30.by}
+      --input-format ${eda_compare_full_vs_30.input_format}
+      --tokenizer ${eda_compare_full_vs_30.tokenizer}
+      --sample-rows ${eda_compare_full_vs_30.sample_rows}
+      --max-len ${eda_compare_full_vs_30.max_len}
+      --clip-tokens ${eda_compare_full_vs_30.clip_tokens}
+      --silence-tokenizer-warnings ${eda_compare_full_vs_30.silence_tokenizer_warnings}
     deps:
       - scripts/EDA/eda_compare.py
-      - reports/eda/full
-      - reports/eda/sample_30pct
+      - ${eda_compare_full_vs_30.a}
+      - ${eda_compare_full_vs_30.b}
     outs:
-      - reports/eda/compare_full_vs_sample_30pct
+      - ${eda_compare_full_vs_30.outdir}
+    params:
+      - eda_compare_full_vs_30
 
   split_train_val_test:
     cmd: >
-      python scripts/training/split_train_val_test.py
+      python scripts/training/prepare_test_parquet.py
       --input  data/trusted/reviews_sample_30pct
-      --outdir data/trusted/splits
-      --text-col review_text_clean
-      --val-size 0.15
-      --test-size 0.15
+      --outdir data/exploitation/modelos_input/sample_tvt
       --seed 42
     deps:
-      - scripts/training/split_train_val_test.py
+      - scripts/training/prepare_test_parquet.py
       - data/trusted/reviews_sample_30pct
       - params.yaml
     outs:
-      - data/trusted/splits/train
-      - data/trusted/splits/val
-      - data/trusted/splits/test
+      - data/exploitation/modelos_input/sample_tvt
 
-  train_albert:
+  make_rest_from_full:
     cmd: >
+      python scripts/data_cleaning/make_rest_from_full.py
+      --full data/trusted/reviews_full
+      --sample-root data/exploitation/modelos_input/sample_tvt
+      --sample-delta data/trusted/reviews_sample_30pct
+      --out data/exploitation/modelos_input/rest_from_full
+      --format parquet
+      --coalesce 64
+    deps:
+      - scripts/data_cleaning/make_rest_from_full.py
+      - data/trusted/reviews_full
+      - data/exploitation/modelos_input/sample_tvt/train
+      - data/exploitation/modelos_input/sample_tvt/val
+      - data/exploitation/modelos_input/sample_tvt/test
+      - data/trusted/reviews_sample_30pct
+    outs:
+      - data/exploitation/modelos_input/rest_from_full
+
+  train_albert_sample:
+    cmd: >
+      MLFLOW_RUN_NAME=albert_sample_30pct
       python scripts/training/train_albert_from_parquets.py
-      --train data/trusted/splits/train
-      --val   data/trusted/splits/val
+      --train data/exploitation/modelos_input/sample_tvt/train
+      --val   data/exploitation/modelos_input/sample_tvt/val
       --model-out models/albert_sample_30pct
       --params params.yaml
     deps:
       - scripts/training/train_albert_from_parquets.py
-      - data/trusted/splits/train
-      - data/trusted/splits/val
+      - data/exploitation/modelos_input/sample_tvt/train
+      - data/exploitation/modelos_input/sample_tvt/val
       - params.yaml
     outs:
       - models/albert_sample_30pct
 
   evaluate_albert_sample:
     cmd: >
-      python scripts/training/evaluate_albert.py
-      --model_dir models/albert_sample_30pct/frozen
-      --test_parquet data/trusted/splits/test
+      PYTHONNOUSERSITE=1 TRANSFORMERS_NO_TF=1 TRANSFORMERS_NO_JAX=1 USE_TF=0 USE_JAX=0
+      /home/pedro/MASTER_BIGDATA/venv/bin/python scripts/training/evaluate_albert.py
+      --model_dir models/albert_sample_30pct
+      --test_parquet data/exploitation/modelos_input/sample_tvt/test
       --output_dir reports/albert_sample_30pct/eval
     deps:
       - scripts/training/evaluate_albert.py
-      - models/albert_sample_30pct/frozen
-      - data/trusted/splits/test
-      - params.yaml
+      - models/albert_sample_30pct
+      - data/exploitation/modelos_input/sample_tvt/test
     outs:
       - reports/albert_sample_30pct/eval
+
+  evaluate_albert_rest:
+    cmd: >
+      python scripts/training/evaluate_albert.py
+      --model_dir models/albert_sample_30pct
+      --test_parquet data/exploitation/modelos_input/rest_from_full
+      --output_dir reports/albert_sample_30pct/eval_rest
+      --max_len 192
+    deps:
+      - scripts/training/evaluate_albert.py
+      - models/albert_sample_30pct
+      - data/exploitation/modelos_input/rest_from_full
+    outs:
+      - reports/albert_sample_30pct/eval_rest
 
   infer_albert_all:
     cmd: >
       python scripts/training/infer_albert_all.py
-      --model_dir models/albert_sample_30pct/frozen
+      --model_dir models/albert_sample_30pct
       --input_parquet data/trusted/reviews_full
       --output_parquet reports/albert_sample_30pct/infer/predictions.parquet
       --eval_output_dir reports/albert_sample_30pct/infer_eval_full
+      --text_col review_text_clean
+      --id_col review_id
+      --label_col label
+      --max_length 192
+      --batch_size 256
+      --labels negative neutral positive
     deps:
       - scripts/training/infer_albert_all.py
-      - models/albert_sample_30pct/frozen
+      - models/albert_sample_30pct
       - data/trusted/reviews_full
-      - params.yaml
     outs:
-      - reports/albert_sample_30pct/infer
-      - reports/albert_sample_30pct/infer_eval_full
+      - reports/albert_sample_30pct/infer/predictions.parquet
+    params:
+      - infer
+    frozen: true
 
-
-
-
+  infer_albert_plots:
+    cmd: >
+      python scripts/training/infer_albert_all.py
+      --model_dir models/albert_sample_30pct
+      --input_parquet data/trusted/reviews_full
+      --output_parquet reports/albert_sample_30pct/infer/predictions.parquet
+      --eval_output_dir reports/albert_sample_30pct/infer_eval_full
+      --text_col review_text_clean
+      --id_col review_id
+      --label_col label
+      --labels negative neutral positive
+      --plots_only
+    deps:
+      - scripts/training/infer_albert_all.py
+      - data/trusted/reviews_full
+      - reports/albert_sample_30pct/infer/predictions.parquet
+    metrics:
+      - reports/albert_sample_30pct/infer_eval_full/metrics.json
+    plots:
+      - reports/albert_sample_30pct/infer_eval_full/confusion.png
+      - reports/albert_sample_30pct/infer_eval_full/confusion_norm.png
+    params:
+      - infer
+    frozen: true
