@@ -138,25 +138,6 @@ stages:
     outs:
       - data/exploitation/modelos_input/sample_tvt
 
-  make_rest_from_full:
-    cmd: >
-      python scripts/data_cleaning/make_rest_from_full.py
-      --full data/trusted/reviews_full
-      --sample-root data/exploitation/modelos_input/sample_tvt
-      --sample-delta data/trusted/reviews_sample_30pct
-      --out data/exploitation/modelos_input/rest_from_full
-      --format parquet
-      --coalesce 64
-    deps:
-      - scripts/data_cleaning/make_rest_from_full.py
-      - data/trusted/reviews_full
-      - data/exploitation/modelos_input/sample_tvt/train
-      - data/exploitation/modelos_input/sample_tvt/val
-      - data/exploitation/modelos_input/sample_tvt/test
-      - data/trusted/reviews_sample_30pct
-    outs:
-      - data/exploitation/modelos_input/rest_from_full
-
   train_albert_sample:
     cmd: >
       MLFLOW_RUN_NAME=albert_sample_30pct
@@ -187,18 +168,5 @@ stages:
     outs:
       - reports/albert_sample_30pct/eval
 
-  evaluate_albert_rest:
-    cmd: >
-      python scripts/training/evaluate_albert.py
-      --model_dir models/albert_sample_30pct
-      --test_parquet data/exploitation/modelos_input/rest_from_full
-      --output_dir reports/albert_sample_30pct/eval_rest
-      --max_len 192
-    deps:
-      - scripts/training/evaluate_albert.py
-      - models/albert_sample_30pct
-      - data/exploitation/modelos_input/rest_from_full
-    outs:
-      - reports/albert_sample_30pct/eval_rest
 
 

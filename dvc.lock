@@ -43,8 +43,8 @@ stages:
       nfiles: 172
     - path: scripts/data_cleaning/trusted_clean_driver.py
       hash: md5
-      md5: 0022c1ecb46a3cc4bf95efd3523fec79
-      size: 804
+      md5: 12fb524919587f142c3e2d8a0b638787
+      size: 805
     - path: scripts/data_cleaning/trusted_clean_single.py
       hash: md5
       md5: e9f9c94752272c42f4c257b369e68e8b
@@ -52,32 +52,32 @@ stages:
     outs:
     - path: data/trusted/sephora_clean/product_info
       hash: md5
-      md5: ebae2388788c8eebfd939e92bc859f7c.dir
+      md5: 3577e02353a591c15b8c577aa684ab64.dir
       size: 2837914
       nfiles: 10
     - path: data/trusted/sephora_clean/reviews_0_250
       hash: md5
-      md5: f86db7d8a9eef13270d0cfedf7464f63.dir
+      md5: cbb8686a5ddcda1718e9e769dec402a7.dir
       size: 267928038
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_1250_end
       hash: md5
-      md5: def28e8662013b12ca62beec37359409.dir
+      md5: 8072752805ff8578438714cb65f5610e.dir
       size: 24234532
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_250_500
       hash: md5
-      md5: 45dea62b129e43f393abe5e63f53df30.dir
+      md5: 7151dafb09764812dc79b98df3e62c73.dir
       size: 95799300
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_500_750
       hash: md5
-      md5: 0f5279830323f43ddbb9ff1067d47f38.dir
+      md5: b06b5bcc8f0cfb1cdf76e71e6b3bfbd1.dir
       size: 54040580
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_750_1250
       hash: md5
-      md5: 2f91c9b029b8c684e12aa9e06a2d382c.dir
+      md5: 2724f4e3837f8d9111976fa0d05fa6db.dir
       size: 56044298
       nfiles: 48
   merge_trusted_reviews:
@@ -86,32 +86,32 @@ stages:
     deps:
     - path: data/trusted/sephora_clean/product_info
       hash: md5
-      md5: ebae2388788c8eebfd939e92bc859f7c.dir
+      md5: 3577e02353a591c15b8c577aa684ab64.dir
       size: 2837914
       nfiles: 10
     - path: data/trusted/sephora_clean/reviews_0_250
       hash: md5
-      md5: f86db7d8a9eef13270d0cfedf7464f63.dir
+      md5: cbb8686a5ddcda1718e9e769dec402a7.dir
       size: 267928038
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_1250_end
       hash: md5
-      md5: def28e8662013b12ca62beec37359409.dir
+      md5: 8072752805ff8578438714cb65f5610e.dir
       size: 24234532
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_250_500
       hash: md5
-      md5: 45dea62b129e43f393abe5e63f53df30.dir
+      md5: 7151dafb09764812dc79b98df3e62c73.dir
       size: 95799300
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_500_750
       hash: md5
-      md5: 0f5279830323f43ddbb9ff1067d47f38.dir
+      md5: b06b5bcc8f0cfb1cdf76e71e6b3bfbd1.dir
       size: 54040580
       nfiles: 48
     - path: data/trusted/sephora_clean/reviews_750_1250
       hash: md5
-      md5: 2f91c9b029b8c684e12aa9e06a2d382c.dir
+      md5: 2724f4e3837f8d9111976fa0d05fa6db.dir
       size: 56044298
       nfiles: 48
     - path: scripts/data_cleaning/merge_trusted_reviews.py
@@ -121,7 +121,7 @@ stages:
     outs:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 24df671359b0da525dcb63a50d0b8f53.dir
+      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
       size: 495378510
       nfiles: 18
   eda_full:
@@ -130,7 +130,7 @@ stages:
     deps:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 24df671359b0da525dcb63a50d0b8f53.dir
+      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
       size: 495378510
       nfiles: 18
     - path: params.yaml
@@ -220,8 +220,8 @@ stages:
     deps:
     - path: data/trusted/reviews_sample_30pct
       hash: md5
-      md5: 1a6ae9d8a28fce4d2d822fe79938cfa9.dir
-      size: 143184372
+      md5: 3c913bd98909183982d0cc53110a1da0.dir
+      size: 143121002
       nfiles: 50
     - path: params.yaml
       hash: md5
@@ -234,8 +234,8 @@ stages:
     outs:
     - path: data/exploitation/modelos_input/sample_tvt
       hash: md5
-      md5: f18174108ca68949ff705521269f5715.dir
-      size: 141591057
+      md5: 0c9a7ed18242b33b7c2e73ba250ce80f.dir
+      size: 141534125
       nfiles: 3
   train_albert_sample:
     cmd: "MLFLOW_RUN_NAME=albert_sample_30pct python scripts/training/train_albert_from_parquets.py
@@ -244,13 +244,13 @@ stages:
     deps:
     - path: data/exploitation/modelos_input/sample_tvt/train
       hash: md5
-      md5: 9ec6dd8cd7e694bd283e3145aaba615b.dir
-      size: 105904923
+      md5: 9209563c84f500f95462c3c20a78aaf0.dir
+      size: 106044050
       nfiles: 1
     - path: data/exploitation/modelos_input/sample_tvt/val
       hash: md5
-      md5: e664b7e6e2edb77b523f27de415196a3.dir
-      size: 14323218
+      md5: 3897382c33dacb582249c542f7c79759.dir
+      size: 14238818
       nfiles: 1
     - path: params.yaml
       hash: md5
@@ -263,7 +263,7 @@ stages:
     outs:
     - path: models/albert_sample_30pct
       hash: md5
-      md5: e45ca43f22c5129254eef74a3224e7e9.dir
+      md5: 923ed8e16d5c6e248094aff1bf38c3cf.dir
       size: 49784962
       nfiles: 8
   evaluate_albert_sample:
@@ -274,12 +274,12 @@ stages:
     deps:
     - path: data/exploitation/modelos_input/sample_tvt/test
       hash: md5
-      md5: 31916cc293715379cb1ee38fd575d021.dir
-      size: 21362916
+      md5: bfa024e0523b5306f46976ba7d064f60.dir
+      size: 21251257
       nfiles: 1
     - path: models/albert_sample_30pct
       hash: md5
-      md5: e45ca43f22c5129254eef74a3224e7e9.dir
+      md5: 923ed8e16d5c6e248094aff1bf38c3cf.dir
       size: 49784962
       nfiles: 8
     - path: scripts/training/evaluate_albert.py
@@ -289,8 +289,8 @@ stages:
     outs:
     - path: reports/albert_sample_30pct/eval
       hash: md5
-      md5: 5cabf02949b968e0bc5b258d21f30e5c.dir
-      size: 2835695
+      md5: ff2869b28cd6b9e7c4e6e5fe3b5bd671.dir
+      size: 2837721
       nfiles: 6
   train_albert:
     cmd: "python scripts/training/train_albert_from_parquets.py --train data/trusted/splits/train
@@ -366,7 +366,7 @@ stages:
     deps:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 24df671359b0da525dcb63a50d0b8f53.dir
+      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
       size: 495378510
       nfiles: 18
     - path: scripts/data_cleaning/sample_reviews.py
@@ -385,8 +385,8 @@ stages:
     outs:
     - path: data/trusted/reviews_sample_30pct
       hash: md5
-      md5: 1a6ae9d8a28fce4d2d822fe79938cfa9.dir
-      size: 143184372
+      md5: 3c913bd98909183982d0cc53110a1da0.dir
+      size: 143121002
       nfiles: 50
   eda_sample_30:
     cmd: "python scripts/EDA/eda_reviews.py --input data/trusted/reviews_sample_30pct
@@ -394,8 +394,8 @@ stages:
     deps:
     - path: data/trusted/reviews_sample_30pct
       hash: md5
-      md5: 1a6ae9d8a28fce4d2d822fe79938cfa9.dir
-      size: 143184372
+      md5: 3c913bd98909183982d0cc53110a1da0.dir
+      size: 143121002
       nfiles: 50
     - path: params.yaml
       hash: md5
@@ -408,8 +408,8 @@ stages:
     outs:
     - path: reports/eda/sample_30
       hash: md5
-      md5: 50da7006b009894683e00f65a8c27d04.dir
-      size: 88256
+      md5: 333147882034d0d369407eef0e05b054.dir
+      size: 86603
       nfiles: 10
   eda_compare_full_vs_30:
     cmd: "python scripts/EDA/eda_compare.py --a data/trusted/reviews_full --b data/trusted/reviews_sample_30pct
@@ -419,13 +419,13 @@ stages:
     deps:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 24df671359b0da525dcb63a50d0b8f53.dir
+      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
       size: 495378510
       nfiles: 18
     - path: data/trusted/reviews_sample_30pct
       hash: md5
-      md5: 1a6ae9d8a28fce4d2d822fe79938cfa9.dir
-      size: 143184372
+      md5: 3c913bd98909183982d0cc53110a1da0.dir
+      size: 143121002
       nfiles: 50
     - path: scripts/EDA/eda_compare.py
       hash: md5
@@ -447,8 +447,8 @@ stages:
     outs:
     - path: reports/eda/compare_full_vs_30
       hash: md5
-      md5: f40ebe979d4521fc05e861dda8933d39.dir
-      size: 60031
+      md5: 05e53a4dae24edd72f181b6bb9f2b098.dir
+      size: 59628
       nfiles: 24
   infer_albert_forward:
     cmd: "PYTHONNOUSERSITE=1 TRANSFORMERS_NO_TF=1 TRANSFORMERS_NO_JAX=1 USE_TF=0 USE_JAX=0
@@ -485,28 +485,28 @@ stages:
     deps:
     - path: data/exploitation/modelos_input/sample_tvt/test
       hash: md5
-      md5: 31916cc293715379cb1ee38fd575d021.dir
-      size: 21362916
+      md5: bfa024e0523b5306f46976ba7d064f60.dir
+      size: 21251257
       nfiles: 1
     - path: data/exploitation/modelos_input/sample_tvt/train
       hash: md5
-      md5: 9ec6dd8cd7e694bd283e3145aaba615b.dir
-      size: 105904923
+      md5: 9209563c84f500f95462c3c20a78aaf0.dir
+      size: 106044050
       nfiles: 1
     - path: data/exploitation/modelos_input/sample_tvt/val
       hash: md5
-      md5: e664b7e6e2edb77b523f27de415196a3.dir
-      size: 14323218
+      md5: 3897382c33dacb582249c542f7c79759.dir
+      size: 14238818
       nfiles: 1
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 24df671359b0da525dcb63a50d0b8f53.dir
+      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
       size: 495378510
       nfiles: 18
     - path: data/trusted/reviews_sample_30pct
       hash: md5
-      md5: 1a6ae9d8a28fce4d2d822fe79938cfa9.dir
-      size: 143184372
+      md5: 3c913bd98909183982d0cc53110a1da0.dir
+      size: 143121002
       nfiles: 50
     - path: scripts/data_cleaning/make_rest_from_full.py
       hash: md5
@@ -515,8 +515,8 @@ stages:
     outs:
     - path: data/exploitation/modelos_input/rest_from_full
       hash: md5
-      md5: 3d191c7bbccd2f2fbb5de1335383c429.dir
-      size: 352996248
+      md5: 05e873d95fec452607af14e895877784.dir
+      size: 353112531
       nfiles: 20
   evaluate_albert_rest:
     cmd: "python scripts/training/evaluate_albert.py --model_dir models/albert_sample_30pct

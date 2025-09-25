@@ -1,8 +1,8 @@
 {
-  "accuracy": 0.9293608418168481,
+  "accuracy": 0.9279384739641507,
   "precision_macro": 0.3333333333333333,
-  "recall_macro": 0.3097869472722827,
-  "f1_macro": 0.3211290916224477,
+  "recall_macro": 0.30931282465471693,
+  "f1_macro": 0.32087416567679167,
   "precision_negative": 0.0,
   "recall_negative": 0.0,
   "f1_negative": 0.0,
@@ -10,6 +10,6 @@
   "recall_neutral": 0.0,
   "f1_neutral": 0.0,
   "precision_positive": 1.0,
-  "recall_positive": 0.9293608418168481,
-  "f1_positive": 0.963387274867343
+  "recall_positive": 0.9279384739641507,
+  "f1_positive": 0.9626224970303751
 }
