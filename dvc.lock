@@ -543,3 +543,28 @@ stages:
       md5: 6ddfbe74ecac33d052ba902bd25f3846.dir
       size: 41250955
       nfiles: 6
+  infer_top50_upvoted_ulta:
+    cmd: "python scripts/infer/infer_top_upvoted_ulta.py --input_delta \"data/trusted/ulta_clean/Ulta
+      Skincare Reviews\" --model_dir models/albert_sample_30pct --top_n 50 --output_parquet
+      reports/albert_sample_30pct/infer_top50_upvoted_ulta/predictions.parquet\n"
+    deps:
+    - path: data/trusted/ulta_clean/Ulta Skincare Reviews
+      hash: md5
+      md5: beebb92e4be0fdb3bc2b5731308aa47c.dir
+      size: 3627645
+      nfiles: 24
+    - path: models/albert_sample_30pct
+      hash: md5
+      md5: 923ed8e16d5c6e248094aff1bf38c3cf.dir
+      size: 49784962
+      nfiles: 8
+    - path: scripts/infer/infer_top_upvoted_ulta.py
+      hash: md5
+      md5: 5c9dc38cb146fbe6d20410672e70c6e3
+      size: 10397
+    outs:
+    - path: reports/albert_sample_30pct/infer_top50_upvoted_ulta
+      hash: md5
+      md5: d75802f5892bc2910d1f23ecaa5ca57b.dir
+      size: 53824
+      nfiles: 12
