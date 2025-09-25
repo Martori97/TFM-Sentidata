@@ -169,4 +169,18 @@ stages:
       - reports/albert_sample_30pct/eval
 
 
+  infer_top50_upvoted_ulta:
+    cmd: >
+      python scripts/infer/infer_top_upvoted_ulta.py
+      --input_delta "data/trusted/ulta_clean/Ulta Skincare Reviews"
+      --model_dir models/albert_sample_30pct
+      --top_n 50
+      --output_parquet reports/albert_sample_30pct/infer_top50_upvoted_ulta/predictions.parquet
+    deps:
+      - scripts/infer/infer_top_upvoted_ulta.py
+      - data/trusted/ulta_clean/Ulta Skincare Reviews
+      - models/albert_sample_30pct
+    outs:
+      - reports/albert_sample_30pct/infer_top50_upvoted_ulta
+
 
