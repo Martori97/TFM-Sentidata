@@ -179,3 +179,13 @@ absa:
   pos_threshold: 4.0
   repartition: null
   output_dir: reports/absa/final_all
+
+infer_sentiment_full_pandas:
+  model_dir: models/albert_sample_30pct
+  input_path: data/trusted/reviews_full_snapshot.parquet
+  input_format: parquet
+  output_parquet: reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+  id_col: review_id
+  text_col: review_text_clean
+  batch_size: 64
+  max_length: 192
