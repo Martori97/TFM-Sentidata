@@ -83,3 +83,99 @@ mlflow:
   run_name: albert_sample_30pct
   tags:
     stage: train
+# =========================
+# Paths (merge trusted)
+# =========================
+paths:
+  reviews_full: data/trusted/reviews_full
+  product_info: data/trusted/sephora_clean/product_info
+  merged_out: data/trusted/reviews_product_info_clean_full
+
+merge_reviews_product_info:
+  input_format: auto        # auto | delta | parquet
+  output_format: delta      # delta | parquet
+  repartition: 0            # evitar shuffle
+  coalesce: 64              # compacta sin shuffle (ajusta si memoria)
+  broadcast_product_info: "true"
+  product_prefix: pinfo_
+
+# =========================
+# ATE (trusted)
+# =========================
+ate_trusted:
+  input_path: data/trusted/reviews_product_info_clean_full
+  input_format: delta
+  text_col: review_text_clean
+  id_col: review_id
+  ontology_json: configs/aspects_en.json
+  output_dir: data/trusted/ate
+  train_filename: train.jsonl
+  valid_filename: valid.jsonl
+  sample_fraction: 0.2     # 0–1: muestreo de reviews
+  max_reviews: 300000      # 0 = sin límite
+  train_valid_split: 0.9
+  keep_neg_ratio: 0.2
+  seed: 13
+
+ate_train:
+  model_name: roberta-base
+  output_dir: models/ate_roberta_base
+  epochs: 4
+  lr: 2e-5
+  batch_size: 32
+  grad_accum: 2
+  max_length: 192
+  # precisión y rendimiento
+  fp16: false          
+  bf16: true         
+  grad_checkpoint: false
+  dataloader_workers: 8
+  # datos
+  train_path: data/trusted/ate/train.jsonl
+  valid_path: data/trusted/ate/valid.jsonl
+
+ate_infer:
+  model_dir: models/ate_roberta_base
+  input_path: data/trusted/reviews_product_info_clean_full
+  input_format: delta
+  text_col: review_text_clean
+  id_col: review_id
+  output_parquet: reports/absa/ate_spans.parquet
+  max_length: 192
+  batch_size: 128
+  flush_rows: 25000
+
+ate_map:
+  spans_parquet: reports/absa/ate_spans.parquet
+  ontology_json: configs/aspects_en.json
+  output_parquet: reports/absa/ate_spans_mapped.parquet
+  threshold: 0.45
+
+# =========================
+# Ontology (English)
+# =========================
+aspects_ontology_en:
+  fragrance: [fragrance, scent, smell, aroma, perfume, notes, odor, fragrant]
+  longevity: [longevity, long-lasting, lasting, wear time, duration, staying power]
+  sillage: [sillage, projection, trail, leaves a trail]
+  price: [price, price point, cost, value, worth, expensive, cheap, overpriced]
+  packaging: [packaging, bottle, cap, pump, box, container, design]
+  texture: [texture, consistency, feel, thick, thin, creamy, watery, sticky, greasy, lightweight, silky]
+  hydration: [hydration, moisturizing, hydrating, moisture, drying, dehydrating]
+  application: [application, apply, applies, spreads, absorbs, glides, blendability, easy to use]
+  finish: [finish, matte, dewy, glowy, glossy, sheen, shine]
+  irritation: [irritation, irritates, sting, burning, redness, itch, breakout, allergic, sensitivity]
+  ingredients: [ingredients, alcohol, parabens, sulfates, silicones, fragrance-free, clean, formula]
+  effectiveness: [effectiveness, works, results, performance, improvement, does nothing]
+
+absa:
+  id_col: review_id
+  span_text_col: aspect_span
+  category_col: aspect_norm
+  sentiment_col: pred_3
+  text_col: null
+  numeric_sentiment_col: null
+  neg_threshold: 2.0
+  pos_threshold: 4.0
+  repartition: null
+  output_dir: reports/absa/final_all
