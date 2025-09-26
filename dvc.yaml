@@ -230,91 +230,64 @@ stages:
       - ${ate_trusted.input_path}
       - ${ate_trusted.ontology_json}
     outs:
-      - ${ate_train.train_path}
-      - ${ate_train.valid_path}
-    params:
-      - ate_trusted
-      - ate_train.train_path
-      - ate_train.valid_path
+      - reports/albert_sample_30pct/infer/predictions.parquet
+    metrics:
+      - reports/albert_sample_30pct/infer_eval_full/metrics.json
+    plots:
+      - reports/albert_sample_30pct/infer_eval_full/confusion.csv
 
-  train_ate_bio:
+  train_rf_sample:
     cmd: >
-      python scripts/absa/train_ate_bio.py
-      --train_path ${ate_train.train_path}
-      --valid_path ${ate_train.valid_path}
-      --model_name ${ate_train.model_name}
-      --output_dir ${ate_train.output_dir}
-      --epochs ${ate_train.epochs}
-      --lr ${ate_train.lr}
-      --batch_size ${ate_train.batch_size}
-      --grad_accum ${ate_train.grad_accum}
-      --max_length ${ate_train.max_length}
-      --fp16 ${ate_train.fp16}
-      --bf16 ${ate_train.bf16}
-      --grad_checkpoint ${ate_train.grad_checkpoint}
-      --dataloader_workers ${ate_train.dataloader_workers}
+      MLFLOW_RUN_NAME=rf_sample_30pct
+      python scripts/training/train_random_forest.py
+      --train data/exploitation/modelos_input/sample_tvt/train
+      --val   data/exploitation/modelos_input/sample_tvt/val
+      --model-out models/sentiment_rf_sample
+      --params params.yaml
     deps:
-      - scripts/absa/train_ate_bio.py
-      - ${ate_train.train_path}
-      - ${ate_train.valid_path}
-    outs:
-      - ${ate_train.output_dir}
-    params:
-      - ate_train
-
-  infer_ate_spans:
-    cmd: >
-      python scripts/absa/infer_ate_spans.py
-      --model_dir ${ate_infer.model_dir}
-      --input_path ${ate_infer.input_path}
-      --input_format ${ate_infer.input_format}
-      --text_col ${ate_infer.text_col}
-      --id_col ${ate_infer.id_col}
-      --output_parquet ${ate_infer.output_parquet}
-      --max_length ${ate_infer.max_length}
-      --batch_size ${ate_infer.batch_size}
-      --flush_rows ${ate_infer.flush_rows}
-    deps:
-      - scripts/absa/infer_ate_spans.py
-      - ${ate_infer.input_path}
-      - ${ate_infer.model_dir}
-    outs:
-      - ${ate_infer.output_parquet}
-    params:
-      - ate_infer
-
-  map_ate_spans:
-    cmd: >
-      python scripts/absa/map_spans_to_ontology.py
-      --spans_parquet ${ate_map.spans_parquet}
-      --ontology_json ${ate_map.ontology_json}
-      --output_parquet ${ate_map.output_parquet}
-      --threshold ${ate_map.threshold}
-    deps:
-      - scripts/absa/map_spans_to_ontology.py
-      - ${ate_map.spans_parquet}
-      - ${ate_map.ontology_json}
-    outs:
-      - ${ate_map.output_parquet}
-    params:
-      - ate_map
-  absa_build_all:
-    cmd: >
-      python scripts/absa/build_absa_dataset.py
-      --spans_parquet reports/absa/ate_spans.parquet
-      --map_parquet   reports/absa/ate_spans_mapped.parquet
-      --sentiment_parquet reports/albert_sample_30pct/eval/predictions.parquet
-      --id_col review_id
-      --span_text_col aspect_span
-      --category_col aspect_norm
-      --sentiment_col pred_3
-      --output_dir reports/absa/final_all
-    deps:
-      - scripts/absa/build_absa_dataset.py
-      - reports/absa/ate_spans.parquet
-      - reports/absa/ate_spans_mapped.parquet
-      - reports/albert_sample_30pct/eval/predictions.parquet
+      - scripts/training/train_random_forest.py
+      - data/exploitation/modelos_input/sample_tvt/train
+      - data/exploitation/modelos_input/sample_tvt/val
       - params.yaml
     outs:
-      - reports/absa/final_all:
-          persist: true
+      - models/sentiment_rf_sample
+      - reports/sentiment_rf  
+
+  evaluate_rf_sample:
+    cmd: >
+      python scripts/training/infer_random_forest.py
+      --model-dir models/sentiment_rf_sample
+      --input data/exploitation/modelos_input/sample_tvt/test
+      --output-dir reports/sentiment_rf_sample/eval
+      --text-col review_text --id-col review_id --use-extra 1
+      &&
+      python scripts/evaluation/metrics_overall.py
+      --preds reports/sentiment_rf_sample/eval/test_predictions.parquet
+      --out_dir reports/sentiment_rf_sample/eval
+    deps:
+      - scripts/training/infer_random_forest.py
+      - scripts/evaluation/metrics_overall.py
+      - models/sentiment_rf_sample
+      - data/exploitation/modelos_input/sample_tvt/test
+    outs:
+      - reports/sentiment_rf_sample/eval
+
+  infer_rf_all:
+    cmd: >
+      python scripts/training/infer_random_forest.py
+      --model-dir models/sentiment_rf_sample
+      --input data/trusted/reviews_full
+      --output-dir reports/sentiment_rf_sample/infer
+      --text-col review_text --id-col review_id --use-extra 1
+      &&
+      python scripts/evaluation/metrics_overall.py
+      --preds reports/sentiment_rf_sample/infer/test_predictions.parquet
+      --out_dir reports/sentiment_rf_sample/infer_eval_full
+    deps:
+      - scripts/training/infer_random_forest.py
+      - scripts/evaluation/metrics_overall.py
+      - models/sentiment_rf_sample
+      - data/trusted/reviews_full
+    outs:
+      - reports/sentiment_rf_sample/infer
+      - reports/sentiment_rf_sample/infer_eval_full
