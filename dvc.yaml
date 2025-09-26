@@ -169,18 +169,152 @@ stages:
       - reports/albert_sample_30pct/eval
 
 
-  infer_top50_upvoted_ulta:
+  merge_reviews_product_info:
     cmd: >
-      python scripts/infer/infer_top_upvoted_ulta.py
-      --input_delta "data/trusted/ulta_clean/Ulta Skincare Reviews"
-      --model_dir models/albert_sample_30pct
-      --top_n 50
-      --output_parquet reports/albert_sample_30pct/infer_top50_upvoted_ulta/predictions.parquet
+      python scripts/data_cleaning/merge_reviews_product_info.py
+      --reviews_path ${paths.reviews_full}
+      --product_info_path ${paths.product_info}
+      --output_path ${paths.merged_out}
+      --input_format ${merge_reviews_product_info.input_format}
+      --output_format ${merge_reviews_product_info.output_format}
+      --repartition ${merge_reviews_product_info.repartition}
+      --coalesce ${merge_reviews_product_info.coalesce}
+      --product_prefix ${merge_reviews_product_info.product_prefix}
+      --broadcast_product_info ${merge_reviews_product_info.broadcast_product_info}
     deps:
-      - scripts/infer/infer_top_upvoted_ulta.py
-      - data/trusted/ulta_clean/Ulta Skincare Reviews
-      - models/albert_sample_30pct
+      - scripts/data_cleaning/merge_reviews_product_info.py
+      - ${paths.reviews_full}
+      - ${paths.product_info}
     outs:
-      - reports/albert_sample_30pct/infer_top50_upvoted_ulta
+      - ${paths.merged_out}
+    params:
+      - paths
+      - merge_reviews_product_info.input_format
+      - merge_reviews_product_info.output_format
+      - merge_reviews_product_info.repartition
+      - merge_reviews_product_info.coalesce
+      - merge_reviews_product_info.product_prefix
+      - merge_reviews_product_info.broadcast_product_info
 
+  gen_aspects_json:
+    cmd: >
+      python -c "import os, json, yaml;
+      d=yaml.safe_load(open('params.yaml'));
+      os.makedirs('configs', exist_ok=True);
+      json.dump(d['aspects_ontology_en'], open('configs/aspects_en.json','w'), ensure_ascii=False, indent=2)"
+    deps:
+      - params.yaml
+    outs:
+      - configs/aspects_en.json
+    params:
+      - aspects_ontology_en
 
+  build_ate_trusted:
+    cmd: >
+      python scripts/absa/build_ate_trusted_from_ontology.py
+      --input_path ${ate_trusted.input_path}
+      --input_format ${ate_trusted.input_format}
+      --text_col ${ate_trusted.text_col}
+      --id_col ${ate_trusted.id_col}
+      --ontology_json ${ate_trusted.ontology_json}
+      --output_dir ${ate_trusted.output_dir}
+      --train_filename ${ate_trusted.train_filename}
+      --valid_filename ${ate_trusted.valid_filename}
+      --sample_fraction ${ate_trusted.sample_fraction}
+      --max_reviews ${ate_trusted.max_reviews}
+      --train_valid_split ${ate_trusted.train_valid_split}
+      --keep_neg_ratio ${ate_trusted.keep_neg_ratio}
+      --seed ${ate_trusted.seed}
+    deps:
+      - scripts/absa/build_ate_trusted_from_ontology.py
+      - ${ate_trusted.input_path}
+      - ${ate_trusted.ontology_json}
+    outs:
+      - ${ate_train.train_path}
+      - ${ate_train.valid_path}
+    params:
+      - ate_trusted
+      - ate_train.train_path
+      - ate_train.valid_path
+
+  train_ate_bio:
+    cmd: >
+      python scripts/absa/train_ate_bio.py
+      --train_path ${ate_train.train_path}
+      --valid_path ${ate_train.valid_path}
+      --model_name ${ate_train.model_name}
+      --output_dir ${ate_train.output_dir}
+      --epochs ${ate_train.epochs}
+      --lr ${ate_train.lr}
+      --batch_size ${ate_train.batch_size}
+      --grad_accum ${ate_train.grad_accum}
+      --max_length ${ate_train.max_length}
+      --fp16 ${ate_train.fp16}
+      --bf16 ${ate_train.bf16}
+      --grad_checkpoint ${ate_train.grad_checkpoint}
+      --dataloader_workers ${ate_train.dataloader_workers}
+    deps:
+      - scripts/absa/train_ate_bio.py
+      - ${ate_train.train_path}
+      - ${ate_train.valid_path}
+    outs:
+      - ${ate_train.output_dir}
+    params:
+      - ate_train
+
+  infer_ate_spans:
+    cmd: >
+      python scripts/absa/infer_ate_spans.py
+      --model_dir ${ate_infer.model_dir}
+      --input_path ${ate_infer.input_path}
+      --input_format ${ate_infer.input_format}
+      --text_col ${ate_infer.text_col}
+      --id_col ${ate_infer.id_col}
+      --output_parquet ${ate_infer.output_parquet}
+      --max_length ${ate_infer.max_length}
+      --batch_size ${ate_infer.batch_size}
+      --flush_rows ${ate_infer.flush_rows}
+    deps:
+      - scripts/absa/infer_ate_spans.py
+      - ${ate_infer.input_path}
+      - ${ate_infer.model_dir}
+    outs:
+      - ${ate_infer.output_parquet}
+    params:
+      - ate_infer
+
+  map_ate_spans:
+    cmd: >
+      python scripts/absa/map_spans_to_ontology.py
+      --spans_parquet ${ate_map.spans_parquet}
+      --ontology_json ${ate_map.ontology_json}
+      --output_parquet ${ate_map.output_parquet}
+      --threshold ${ate_map.threshold}
+    deps:
+      - scripts/absa/map_spans_to_ontology.py
+      - ${ate_map.spans_parquet}
+      - ${ate_map.ontology_json}
+    outs:
+      - ${ate_map.output_parquet}
+    params:
+      - ate_map
+  absa_build_all:
+    cmd: >
+      python scripts/absa/build_absa_dataset.py
+      --spans_parquet reports/absa/ate_spans.parquet
+      --map_parquet   reports/absa/ate_spans_mapped.parquet
+      --sentiment_parquet reports/albert_sample_30pct/eval/predictions.parquet
+      --id_col review_id
+      --span_text_col aspect_span
+      --category_col aspect_norm
+      --sentiment_col pred_3
+      --output_dir reports/absa/final_all
+    deps:
+      - scripts/absa/build_absa_dataset.py
+      - reports/absa/ate_spans.parquet
+      - reports/absa/ate_spans_mapped.parquet
+      - reports/albert_sample_30pct/eval/predictions.parquet
+      - params.yaml
+    outs:
+      - reports/absa/final_all:
+          persist: true

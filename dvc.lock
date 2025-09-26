@@ -568,3 +568,345 @@ stages:
       md5: d75802f5892bc2910d1f23ecaa5ca57b.dir
       size: 53824
       nfiles: 12
+  merge_reviews_product_info:
+    cmd: "python scripts/data_cleaning/merge_reviews_product_info.py --reviews_path
+      data/trusted/reviews_full --product_info_path data/trusted/sephora_clean/product_info
+      --output_path data/trusted/reviews_product_info_clean_full --input_format auto
+      --output_format delta --repartition 0 --coalesce 64 --product_prefix pinfo_
+      --broadcast_product_info true\n"
+    deps:
+    - path: data/trusted/reviews_full
+      hash: md5
+      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
+      size: 495378510
+      nfiles: 18
+    - path: data/trusted/sephora_clean/product_info
+      hash: md5
+      md5: 3577e02353a591c15b8c577aa684ab64.dir
+      size: 2837914
+      nfiles: 10
+    - path: scripts/data_cleaning/merge_reviews_product_info.py
+      hash: md5
+      md5: 8146cb418204fc6ac7c89d9e5ef61ca9
+      size: 7736
+    params:
+      params.yaml:
+        merge_reviews_product_info.broadcast_product_info: 'true'
+        merge_reviews_product_info.coalesce: 64
+        merge_reviews_product_info.input_format: auto
+        merge_reviews_product_info.output_format: delta
+        merge_reviews_product_info.product_prefix: pinfo_
+        merge_reviews_product_info.repartition: 0
+        paths:
+          reviews_full: data/trusted/reviews_full
+          product_info: data/trusted/sephora_clean/product_info
+          merged_out: data/trusted/reviews_product_info_clean_full
+    outs:
+    - path: data/trusted/reviews_product_info_clean_full
+      hash: md5
+      md5: eaadce9f929da408872e4483cfab3c5a.dir
+      size: 796568875
+      nfiles: 20
+  gen_aspects_json:
+    cmd: "python -c \"import os, json, yaml; d=yaml.safe_load(open('params.yaml'));
+      os.makedirs('configs', exist_ok=True); json.dump(d['aspects_ontology_en'], open('configs/aspects_en.json','w'),
+      ensure_ascii=False, indent=2)\"\n"
+    deps:
+    - path: params.yaml
+      hash: md5
+      md5: 54f6dbb1dfbb57cbad1a7f096050bd1d
+      size: 5378
+    params:
+      params.yaml:
+        aspects_ontology_en:
+          fragrance:
+          - fragrance
+          - scent
+          - smell
+          - aroma
+          - perfume
+          - notes
+          - odor
+          - fragrant
+          longevity:
+          - longevity
+          - long-lasting
+          - lasting
+          - wear time
+          - duration
+          - staying power
+          sillage:
+          - sillage
+          - projection
+          - trail
+          - leaves a trail
+          price:
+          - price
+          - price point
+          - cost
+          - value
+          - worth
+          - expensive
+          - cheap
+          - overpriced
+          packaging:
+          - packaging
+          - bottle
+          - cap
+          - pump
+          - box
+          - container
+          - design
+          texture:
+          - texture
+          - consistency
+          - feel
+          - thick
+          - thin
+          - creamy
+          - watery
+          - sticky
+          - greasy
+          - lightweight
+          - silky
+          hydration:
+          - hydration
+          - moisturizing
+          - hydrating
+          - moisture
+          - drying
+          - dehydrating
+          application:
+          - application
+          - apply
+          - applies
+          - spreads
+          - absorbs
+          - glides
+          - blendability
+          - easy to use
+          finish:
+          - finish
+          - matte
+          - dewy
+          - glowy
+          - glossy
+          - sheen
+          - shine
+          irritation:
+          - irritation
+          - irritates
+          - sting
+          - burning
+          - redness
+          - itch
+          - breakout
+          - allergic
+          - sensitivity
+          ingredients:
+          - ingredients
+          - alcohol
+          - parabens
+          - sulfates
+          - silicones
+          - fragrance-free
+          - clean
+          - formula
+          effectiveness:
+          - effectiveness
+          - works
+          - results
+          - performance
+          - improvement
+          - does nothing
+    outs:
+    - path: configs/aspects_en.json
+      hash: md5
+      md5: 1f1cbebab683cf097855ecfa9cfdecd8
+      size: 1617
+  build_ate_trusted:
+    cmd: "python scripts/absa/build_ate_trusted_from_ontology.py --input_path data/trusted/reviews_product_info_clean_full
+      --input_format delta --text_col review_text_clean --id_col review_id --ontology_json
+      configs/aspects_en.json --output_dir data/trusted/ate --train_filename train.jsonl
+      --valid_filename valid.jsonl --sample_fraction 0.2 --max_reviews 300000 --train_valid_split
+      0.9 --keep_neg_ratio 0.2 --seed 13\n"
+    deps:
+    - path: configs/aspects_en.json
+      hash: md5
+      md5: 1f1cbebab683cf097855ecfa9cfdecd8
+      size: 1617
+    - path: data/trusted/reviews_product_info_clean_full
+      hash: md5
+      md5: eaadce9f929da408872e4483cfab3c5a.dir
+      size: 796568875
+      nfiles: 20
+    - path: scripts/absa/build_ate_trusted_from_ontology.py
+      hash: md5
+      md5: 0f4076985d3d58641f55425086c1cbfd
+      size: 7793
+    params:
+      params.yaml:
+        ate_train.train_path: data/trusted/ate/train.jsonl
+        ate_train.valid_path: data/trusted/ate/valid.jsonl
+        ate_trusted:
+          input_path: data/trusted/reviews_product_info_clean_full
+          input_format: delta
+          text_col: review_text_clean
+          id_col: review_id
+          ontology_json: configs/aspects_en.json
+          output_dir: data/trusted/ate
+          train_filename: train.jsonl
+          valid_filename: valid.jsonl
+          sample_fraction: 0.2
+          max_reviews: 300000
+          train_valid_split: 0.9
+          keep_neg_ratio: 0.2
+          seed: 13
+    outs:
+    - path: data/trusted/ate/train.jsonl
+      hash: md5
+      md5: 72845fb98ed2c103ebbe5fad193f2d48
+      size: 132839940
+    - path: data/trusted/ate/valid.jsonl
+      hash: md5
+      md5: 95deb7ccc458567f8a729cd58713922d
+      size: 14739976
+  train_ate_bio:
+    cmd: "python scripts/absa/train_ate_bio.py --train_path data/trusted/ate/train.jsonl
+      --valid_path data/trusted/ate/valid.jsonl --model_name roberta-base --output_dir
+      models/ate_roberta_base --epochs 4 --lr 2e-05 --batch_size 32 --grad_accum 2
+      --max_length 192 --fp16 false --bf16 true --grad_checkpoint false --dataloader_workers
+      8\n"
+    deps:
+    - path: data/trusted/ate/train.jsonl
+      hash: md5
+      md5: 72845fb98ed2c103ebbe5fad193f2d48
+      size: 132839940
+    - path: data/trusted/ate/valid.jsonl
+      hash: md5
+      md5: 95deb7ccc458567f8a729cd58713922d
+      size: 14739976
+    - path: scripts/absa/train_ate_bio.py
+      hash: md5
+      md5: 2d388cccc6f6208197038b4dec501bbb
+      size: 9197
+    params:
+      params.yaml:
+        ate_train:
+          model_name: roberta-base
+          output_dir: models/ate_roberta_base
+          epochs: 4
+          lr: 2e-05
+          batch_size: 32
+          grad_accum: 2
+          max_length: 192
+          fp16: false
+          bf16: true
+          grad_checkpoint: false
+          dataloader_workers: 8
+          train_path: data/trusted/ate/train.jsonl
+          valid_path: data/trusted/ate/valid.jsonl
+    outs:
+    - path: models/ate_roberta_base
+      hash: md5
+      md5: 217673fb8b498315510c12975c5f563c.dir
+      size: 1994821249
+      nfiles: 20
+  infer_ate_spans:
+    cmd: "python scripts/absa/infer_ate_spans.py --model_dir models/ate_roberta_base
+      --input_path data/trusted/reviews_product_info_clean_full --input_format delta
+      --text_col review_text_clean --id_col review_id --output_parquet reports/absa/ate_spans.parquet
+      --max_length 192 --batch_size 128 --flush_rows 25000\n"
+    deps:
+    - path: data/trusted/reviews_product_info_clean_full
+      hash: md5
+      md5: eaadce9f929da408872e4483cfab3c5a.dir
+      size: 796568875
+      nfiles: 20
+    - path: models/ate_roberta_base
+      hash: md5
+      md5: 217673fb8b498315510c12975c5f563c.dir
+      size: 1994821249
+      nfiles: 20
+    - path: scripts/absa/infer_ate_spans.py
+      hash: md5
+      md5: b57c3d9890578e13d1eac09d51759be9
+      size: 12960
+    params:
+      params.yaml:
+        ate_infer:
+          model_dir: models/ate_roberta_base
+          input_path: data/trusted/reviews_product_info_clean_full
+          input_format: delta
+          text_col: review_text_clean
+          id_col: review_id
+          output_parquet: reports/absa/ate_spans.parquet
+          max_length: 192
+          batch_size: 128
+          flush_rows: 25000
+    outs:
+    - path: reports/absa/ate_spans.parquet
+      hash: md5
+      md5: de6928cf97aec2601266f1c3f7cf6f39
+      size: 40279059
+  map_ate_spans:
+    cmd: "python scripts/absa/map_spans_to_ontology.py --spans_parquet reports/absa/ate_spans.parquet
+      --ontology_json configs/aspects_en.json --output_parquet reports/absa/ate_spans_mapped.parquet
+      --threshold 0.45\n"
+    deps:
+    - path: configs/aspects_en.json
+      hash: md5
+      md5: 1f1cbebab683cf097855ecfa9cfdecd8
+      size: 1617
+    - path: reports/absa/ate_spans.parquet
+      hash: md5
+      md5: de6928cf97aec2601266f1c3f7cf6f39
+      size: 40279059
+    - path: scripts/absa/map_spans_to_ontology.py
+      hash: md5
+      md5: 2a66e66e776129c17888700ec3fec240
+      size: 3146
+    params:
+      params.yaml:
+        ate_map:
+          spans_parquet: reports/absa/ate_spans.parquet
+          ontology_json: configs/aspects_en.json
+          output_parquet: reports/absa/ate_spans_mapped.parquet
+          threshold: 0.45
+    outs:
+    - path: reports/absa/ate_spans_mapped.parquet
+      hash: md5
+      md5: 6c9a99ed713accecd123221adaf1cb7e
+      size: 35793367
+  absa_build_all:
+    cmd: "python scripts/absa/build_absa_dataset.py --spans_parquet reports/absa/ate_spans.parquet
+      --map_parquet   reports/absa/ate_spans_mapped.parquet --sentiment_parquet reports/albert_sample_30pct/eval/predictions.parquet
+      --id_col review_id --span_text_col aspect_span --category_col aspect_norm --sentiment_col
+      pred_3 --output_dir reports/absa/final_all\n"
+    deps:
+    - path: params.yaml
+      hash: md5
+      md5: 8f0c29b7cc25c7e8c4cc69fdabaad105
+      size: 5446
+    - path: reports/absa/ate_spans.parquet
+      hash: md5
+      md5: de6928cf97aec2601266f1c3f7cf6f39
+      size: 40279059
+    - path: reports/absa/ate_spans_mapped.parquet
+      hash: md5
+      md5: 6c9a99ed713accecd123221adaf1cb7e
+      size: 35793367
+    - path: reports/albert_sample_30pct/eval/predictions.parquet
+      hash: md5
+      md5: 87938fb8ebe761a3cf982fb371a7cd71
+      size: 2781658
+    - path: scripts/absa/build_absa_dataset.py
+      hash: md5
+      md5: 37777cd65e975fafb0adb50ead1c0e9e
+      size: 17156
+    outs:
+    - path: reports/absa/final_all
+      hash: md5
+      md5: 224c1ce781abf4bd821c31a139fc3236.dir
+      size: 54695528
+      nfiles: 73
