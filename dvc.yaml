@@ -289,5 +289,55 @@ stages:
       - models/sentiment_rf_sample
       - data/trusted/reviews_full
     outs:
-      - reports/sentiment_rf_sample/infer
-      - reports/sentiment_rf_sample/infer_eval_full
+      - ${ate_map.output_parquet}
+    params:
+      - ate_map
+  convert_delta_to_parquet_snapshot:
+    cmd: python scripts/infer/convert_delta_to_parquet_snapshot.py --input_path data/trusted/reviews_full --output_path data/trusted/reviews_full_snapshot.parquet
+    deps:
+      - scripts/infer/convert_delta_to_parquet_snapshot.py
+      - data/trusted/reviews_full
+    outs:
+      - data/trusted/reviews_full_snapshot.parquet
+  infer_sentiment_full_pandas:
+    cmd: >-
+      python scripts/infer/infer_sentiment_full_pandas.py
+      --model_dir models/albert_sample_30pct
+      --input_parquet data/trusted/reviews_full_snapshot.parquet
+      --output_parquet reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+      --params_file params.yaml
+    deps:
+      - scripts/infer/infer_sentiment_full_pandas.py
+      - models/albert_sample_30pct
+      - data/trusted/reviews_full_snapshot.parquet
+      - params.yaml
+    outs:
+      - reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+    params:
+      - infer_sentiment_full_pandas.batch_size
+      - infer_sentiment_full_pandas.max_length
+      - infer_sentiment_full_pandas.id_col
+      - infer_sentiment_full_pandas.text_col
+
+  absa_build_all:
+    cmd: >
+      python scripts/absa/build_absa_dataset.py
+      --spans_parquet reports/absa/ate_spans.parquet
+      --map_parquet   reports/absa/ate_spans_mapped.parquet
+      --sentiment_parquet reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+      --id_col review_id
+      --span_text_col aspect_span
+      --category_col aspect_norm
+      --sentiment_col pred_3
+      --output_dir reports/absa/final_all
+    deps:
+      - scripts/absa/build_absa_dataset.py
+      - reports/absa/ate_spans.parquet
+      - reports/absa/ate_spans_mapped.parquet
+      - reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+      - params.yaml
+    outs:
+      - reports/absa/final_all:
+          persist: true
+
+
