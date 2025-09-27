@@ -316,13 +316,13 @@ stages:
     deps:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
+      md5: a1409c92f8c045c37286352b55beb36c.dir
       size: 495378510
       nfiles: 18
     - path: scripts/data_cleaning/sample_reviews.py
       hash: md5
-      md5: fd98cc639796fd46d1361d8b2fe224c3
-      size: 8858
+      md5: 4e37eeb323e250f4613b96eb05dc7370
+      size: 10609
     params:
       params.yaml:
         sampling:
@@ -335,9 +335,9 @@ stages:
     outs:
     - path: data/trusted/reviews_sample_30pct
       hash: md5
-      md5: 3c913bd98909183982d0cc53110a1da0.dir
-      size: 143121002
-      nfiles: 50
+      md5: 1e4c58a4c884d75e711af279e5770892.dir
+      size: 152182309
+      nfiles: 130
   eda_sample_30:
     cmd: "python scripts/EDA/eda_reviews.py --input data/trusted/reviews_sample_30pct
       --outdir reports/eda/sample_30 --tokenizer albert-base-v2\n"
