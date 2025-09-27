@@ -15,11 +15,13 @@ Notas:
   se deriva una etiqueta temporal de 3 clases a partir de 'rating' (<=2, ==3, >=4).
 """
 
-import os
 import argparse
-from typing import Optional
+import os
+import random
 
-from pyspark.sql import SparkSession, DataFrame, functions as F
+from pyspark.sql import SparkSession, functions as F
+from pyspark.sql import Window
+from pyspark import StorageLevel
 
 # --- Delta opcional (si está instalado) ---
 try:
@@ -34,46 +36,51 @@ ALT_LABEL_CANDIDATES = ["label", "sentiment_category", "sentiment", "stars", "ra
 # ---------- util parse ----------
 def str2bool(v):
     """
-    Acepta: --balance, --balance true/false, yes/no, 1/0
+    Acepta: true/false, yes/no, 1/0
     """
     if isinstance(v, bool):
         return v
-    if v is None:
-        return True
-    s = str(v).strip().lower()
-    if s in ("1", "true", "t", "yes", "y"):
-        return True
-    if s in ("0", "false", "f", "no", "n"):
-        return False
-    raise argparse.ArgumentTypeError(f"Valor booleano inválido: {v}")
+    v = str(v).strip().lower()
+    return v in ("true", "1", "yes", "y", "t", "si", "sí")
 
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--input", required=True, help="Tabla/parquet de entrada (ej. data/trusted/reviews_full)")
-    p.add_argument("--output", required=True, help="Salida del sample (Delta/Parquet)")
-    p.add_argument("--format", default="delta", choices=["delta", "parquet"], help="Formato de salida")
-    p.add_argument("--input-format", default="auto", choices=["auto", "delta", "parquet"], help="Formato de entrada")
-    p.add_argument("--coalesce", type=int, default=64, help="Nº de archivos de salida")
+    p.add_argument("--input", required=True, help="Ruta de entrada (carpeta Delta/Parquet)")
+    p.add_argument("--output", required=True, help="Ruta de salida (carpeta)")
+    p.add_argument("--frac", type=float, default=0.3, help="Fracción de muestreo (modo normal)")
+    p.add_argument("--by", type=str, default=None, help="Columna de estratificación")
+    p.add_argument("--format", type=str, default="delta", choices=["delta", "parquet"])
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--frac", type=float, default=1.0, help="Fracción si no se usa balance")
-    p.add_argument("--by", default=None, help="Columna para muestreo estratificado (si no balance)")
-    p.add_argument("--label-col", default=None, help="Columna de etiqueta (autodetecta si no se indica)")
-    # acepta '--balance' y '--balance true/false'
-    p.add_argument("--balance", nargs="?", const=True, default=False, type=str2bool,
-                   help="Si es true (o presente): NEG=all, NEU=all, POS=NEG. Si false: usa --frac/--by.")
+    p.add_argument("--coalesce", type=int, default=64, help="#particiones de salida (usamos repartition)")
+    p.add_argument("--balance", type=str2bool, default=False, help="Modo balanceado 3 clases")
+    p.add_argument("--text_col", type=str, default="review_text_clean", help="Columna de texto (si aplica)")
+    p.add_argument("--id_col", type=str, default="review_id", help="Columna id (si aplica)")
     return p.parse_args()
 
 
 # ---------- spark ----------
-def build_spark(app_name="sample_reviews"):
+def build_spark(app_name="sample_reviews", driver_mem="6g", executor_mem="6g"):
+    """
+    SparkSession con Delta y parámetros para reducir presión de memoria.
+    """
     builder = (
         SparkSession.builder
         .appName(app_name)
-        .config("spark.sql.shuffle.partitions", "200")
-        .config("spark.sql.files.maxRecordsPerFile", "500000")
-        .config("spark.sql.parquet.compression.codec", "snappy")
+        # Memoria
+        .config("spark.driver.memory", driver_mem)
+        .config("spark.executor.memory", executor_mem)
+        # Shuffle/particiones más finas
+        .config("spark.sql.shuffle.partitions", "128")
+        .config("spark.sql.files.maxPartitionBytes", "64m")
+        # Tuning de memoria
+        .config("spark.memory.fraction", "0.6")
+        .config("spark.storage.memoryFraction", "0.3")
+        # Parquet seguro para heap
+        .config("parquet.enable.dictionary", "false")
+        .config("spark.sql.parquet.enableVectorizedReader", "false")
     )
+
     if HAS_DELTA:
         builder = (
             builder
@@ -83,147 +90,201 @@ def build_spark(app_name="sample_reviews"):
         spark = configure_spark_with_delta_pip(builder).getOrCreate()
     else:
         spark = builder.getOrCreate()
+
+    # Menos verbosidad
     spark.sparkContext.setLogLevel("WARN")
     return spark
 
 
-def detect_is_delta(path: str) -> bool:
-    return os.path.isdir(os.path.join(path, "_delta_log"))
-
-
-def read_input(spark: SparkSession, path: str, input_format: str) -> DataFrame:
-    if input_format == "delta" or (input_format == "auto" and detect_is_delta(path)):
+# ---------- io ----------
+def read_input(spark: SparkSession, path: str, fmt: str):
+    if fmt == "delta":
         return spark.read.format("delta").load(path)
-    return spark.read.parquet(path)
-
-
-# ---------- helpers ----------
-def choose_label_col(df: DataFrame, user: Optional[str]) -> str:
-    if user and user in df.columns:
-        return user
-    for c in ALT_LABEL_CANDIDATES:
-        if c in df.columns:
-            return c
-    raise SystemExit("[sample] No se encontró columna de etiqueta (prueba --label-col).")
-
-
-def ensure_threeclass_label_for_balance(df: DataFrame, label_col: str) -> (DataFrame, str):
-    """
-    Si label_col ya contiene 'negative|neutral|positive', lo usamos tal cual.
-    Si no, y existe 'rating', derivamos __label_bal de rating (<=2 neg, ==3 neu, >=4 pos).
-    Devuelve (df_con_posible_col_temporal, nombre_col_usable).
-    """
-    # ¿ya es una de las 3 clases?
-    has_expected = df.filter(F.col(label_col).isin("negative", "neutral", "positive")).limit(1).count() > 0
-    if has_expected:
-        return df, label_col
-
-    if "rating" in df.columns:
-        df2 = df.withColumn(
-            "__label_bal",
-            F.when(F.col("rating") <= 2, F.lit("negative"))
-             .when(F.col("rating") == 3, F.lit("neutral"))
-             .otherwise(F.lit("positive"))
-        )
-        print(f"[sample] '{label_col}' no es 3-clases; usando etiqueta derivada de 'rating' -> __label_bal")
-        return df2, "__label_bal"
-
-    raise SystemExit("[sample][ERROR] La columna de etiqueta no es 3-clases y no existe 'rating' para derivarla. "
-                     "Pasa --label-col adecuada o añade 'label'/'sentiment_category'.")
-
-
-def balance_neg_neu_pos_to_neg(df: DataFrame, label_col: str, seed: int) -> DataFrame:
-    """
-    Mantiene todos los NEG y NEU.
-    Ajusta POS = Nº NEG (down/upsample con reposición).
-    """
-    # asegurar que el label es 3-clases válido
-    df, use_label = ensure_threeclass_label_for_balance(df, label_col)
-
-    neg_df = df.filter(F.col(use_label) == "negative")
-    neu_df = df.filter(F.col(use_label) == "neutral")
-    pos_df = df.filter(F.col(use_label) == "positive")
-
-    # conteos (sin pandas)
-    counts = {r[use_label]: int(r["count"]) for r in df.groupBy(use_label).count().collect()}
-    n_neg = counts.get("negative", 0)
-    n_pos = counts.get("positive", 0)
-    target_pos = n_neg
-
-    if n_neg == 0:
-        raise SystemExit("[sample][ERROR] No hay ejemplos 'negative'. No se puede balancear con la regla pos=neg.")
-
-    if n_pos >= target_pos:
-        # downsample exacto
-        pos_bal = pos_df.orderBy(F.rand(seed)).limit(target_pos)
+    elif fmt == "parquet":
+        return spark.read.parquet(path)
     else:
-        # upsample con reposición
-        times = target_pos // max(n_pos, 1)
-        rem = target_pos - times * n_pos
-
-        pos_bal = None
-        for _ in range(max(times, 1)):
-            pos_bal = pos_df if pos_bal is None else pos_bal.unionByName(pos_df)
-
-        if rem > 0:
-            pos_extra = pos_df.orderBy(F.rand(seed + 1)).limit(rem)
-            pos_bal = pos_bal.unionByName(pos_extra)
-
-    out = neg_df.unionByName(neu_df).unionByName(pos_bal)
-
-    # si creamos __label_bal, no hace falta dejarlo en el output; el resto del pipeline usa sus propias columnas
-    if "__label_bal" in out.columns:
-        out = out.drop("__label_bal")
-
-    return out.orderBy(F.rand(seed + 2))
+        raise ValueError(f"Formato no soportado: {fmt}")
 
 
-def stratified_fraction(df: DataFrame, by_col: str, frac: float, seed: int) -> DataFrame:
-    keys = [r[0] for r in df.select(by_col).distinct().collect()]
-    fracs = {k: frac for k in keys}
-    return df.sampleBy(by_col, fractions=fracs, seed=seed)
+def write_output(df, out_path, fmt="delta", n_out_partitions=64):
+    """
+    Escribe con repartition + persist(DISK_ONLY) + materialización previa
+    para reducir picos de memoria en el write.
+    """
+    # Reparticiona uniformemente (mejor que coalesce para evitar particiones desbalanceadas)
+    df = df.repartition(int(max(1, n_out_partitions)))
+    # Materializa a disco antes del write
+    df = df.persist(StorageLevel.DISK_ONLY)
+    _ = df.count()  # fuerza evaluación
 
-
-def write_output(df: DataFrame, out_path: str, fmt: str, coalesce: int):
-    if coalesce and coalesce > 0:
-        df = df.coalesce(coalesce)
-    writer = (
-        df.write
-        .mode("overwrite")
-        .option("compression", "snappy")
-        .option("maxRecordsPerFile", 500000)
-    )
+    writer = df.write.mode("overwrite")
     if fmt == "delta":
         writer.format("delta").save(out_path)
-    else:
+    elif fmt == "parquet":
         writer.parquet(out_path)
+    else:
+        raise ValueError(f"Formato no soportado: {fmt}")
+
+
+# ---------- helpers de etiquetas ----------
+def ensure_three_class_label(df, label_col: str):
+    """
+    Garantiza que label_col tenga valores en {'negative','neutral','positive'}.
+    Si label_col == 'rating' (1..5), deriva 3 clases:
+      <=2 -> negative, ==3 -> neutral, >=4 -> positive
+    """
+    # Si ya contiene strings 3 clases, devolvemos tal cual
+    sample_vals = [r[label_col] for r in df.select(label_col).dropna().limit(1000).collect()]
+    sample_vals_str = set(map(lambda x: str(x).lower(), sample_vals))
+
+    triples = {"negative", "neutral", "positive"}
+    if any(v in triples for v in sample_vals_str):
+        # Asumimos ya correcto
+        return df, label_col
+
+    # Si es rating/numérico, derivamos
+    if label_col.lower() == "rating":
+        df2 = df.withColumn(
+            "__label_bal",
+            F.when(F.col("rating") <= F.lit(2), F.lit("negative"))
+             .when(F.col("rating") == F.lit(3), F.lit("neutral"))
+             .otherwise(F.lit("positive"))
+        )
+        return df2, "__label_bal"
+
+    # Si es stars/numérico de 1..5
+    if label_col.lower() == "stars":
+        df2 = df.withColumn(
+            "__label_bal",
+            F.when(F.col("stars") <= F.lit(2), F.lit("negative"))
+             .when(F.col("stars") == F.lit(3), F.lit("neutral"))
+             .otherwise(F.lit("positive"))
+        )
+        return df2, "__label_bal"
+
+    # En último término: intenta mapear strings tipo 'neg','neu','pos'
+    df2 = df.withColumn(
+        "__label_bal",
+        F.when(F.lower(F.col(label_col)).startswith("neg"), F.lit("negative"))
+         .when(F.lower(F.col(label_col)).startswith("neu"), F.lit("neutral"))
+         .when(F.lower(F.col(label_col)).startswith("pos"), F.lit("positive"))
+         .otherwise(F.lit(None))
+    )
+    return df2, "__label_bal"
+
+
+def pick_label_column(df):
+    cols = df.columns
+    # prioridad conocida
+    for c in ["sentiment_category", "label", "sentiment"]:
+        if c in cols:
+            return c
+    # fallback: stars/rating
+    for c in ["rating", "stars"]:
+        if c in cols:
+            return c
+    # último recurso: primera entre candidatos
+    for c in ALT_LABEL_CANDIDATES:
+        if c in cols:
+            return c
+    raise ValueError("No se encontró ninguna columna de etiqueta candidata.")
+
+
+# ---------- sampling ----------
+def sample_balanced_three_class(df, label_col, seed=42):
+    """
+    NEG = todos, NEU = todos, POS = igual a NEG (downsample o upsample con reposición).
+    """
+    neg = df.filter(F.col(label_col) == "negative")
+    neu = df.filter(F.col(label_col) == "neutral")
+    pos = df.filter(F.col(label_col) == "positive")
+
+    n_neg = neg.count()
+    n_neu = neu.count()
+    n_pos = pos.count()
+
+    if n_neg == 0 or n_neu == 0 or n_pos == 0:
+        raise RuntimeError(f"[balance] Alguna clase está vacía: neg={n_neg}, neu={n_neu}, pos={n_pos}")
+
+    # POS → tamaño de NEG
+    if n_pos >= n_neg:
+        frac = n_neg / n_pos
+        pos_bal = pos.sample(withReplacement=False, fraction=frac, seed=seed)
+    else:
+        # upsample con reposición
+        reps = int(n_neg // max(1, n_pos))
+        resto = (n_neg % max(1, n_pos)) / max(1, n_pos)
+        parts = [pos] * max(1, reps)
+        if resto > 0:
+            parts.append(pos.sample(withReplacement=True, fraction=resto, seed=seed))
+        pos_bal = parts[0]
+        for p in parts[1:]:
+            pos_bal = pos_bal.unionByName(p)
+
+    sampled = neg.unionByName(neu).unionByName(pos_bal)
+    return sampled
+
+
+def sample_stratified(df, by_col, frac, seed=42):
+    """
+    Muestreo estratificado por columna 'by_col' con fracción 'frac'.
+    """
+    # usa sampleBy si cardinalidad razonable; si no, fallback por Window+row_number
+    distinct_vals = [r[by_col] for r in df.select(by_col).distinct().limit(10000).collect()]
+    if len(distinct_vals) <= 1000:
+        fractions = {v: frac for v in distinct_vals}
+        return df.sampleBy(by_col, fractions=fractions, seed=seed)
+    else:
+        w = Window.partitionBy(by_col).orderBy(F.rand(seed))
+        return (
+            df.withColumn("__rn", F.row_number().over(w))
+              .withColumn("__cnt", F.count(F.lit(1)).over(Window.partitionBy(by_col)))
+              .withColumn("__keep", F.col("__rn") <= (F.col("__cnt") * F.lit(frac)))
+              .filter(F.col("__keep"))
+              .drop("__rn", "__cnt", "__keep")
+        )
+
+
+def sample_simple(df, frac, seed=42):
+    return df.sample(withReplacement=False, fraction=frac, seed=seed)
 
 
 # ---------- main ----------
 def main():
     args = parse_args()
+    random.seed(args.seed)
+
     spark = build_spark()
 
-    df = read_input(spark, args.input, args.input_format)
-    label_col = choose_label_col(df, args.label_col)
+    # Lee entrada (detecta delta/parquet por bandera --format)
+    df = read_input(spark, args.input, args.format)
 
+    # Selección de etiqueta
+    label_col = pick_label_column(df)
+
+    # Si no es 3 clases, derivar desde rating/stars o mapear
+    df, label_col = ensure_three_class_label(df, label_col)
+
+    # Normaliza valores posibles
+    df = df.withColumn(
+        label_col,
+        F.when(F.col(label_col).isin("negative", "neutral", "positive"), F.col(label_col))
+         .otherwise(F.col(label_col))
+    )
+
+    # Si vamos a balancear, se ignoran --frac y --by
     if args.balance:
-        sampled = balance_neg_neu_pos_to_neg(df, label_col=label_col, seed=args.seed)
         mode = "balance"
+        sampled = sample_balanced_three_class(df, label_col, seed=args.seed)
     else:
-        # modo no balanceado: aleatorio o estratificado
-        if args.frac >= 1.0:
-            sampled = df
-            mode = "all"
+        # Modo normal
+        mode = "normal"
+        if args.by:
+            sampled = sample_stratified(df, args.by, args.frac, seed=args.seed)
         else:
-            if args.by and args.by in df.columns:
-                sampled = stratified_fraction(df, by_col=args.by, frac=args.frac, seed=args.seed)
-                mode = f"estratificado(by={args.by}, frac={args.frac})"
-            else:
-                sampled = df.sample(withReplacement=False, fraction=args.frac, seed=args.seed)
-                mode = f"aleatorio(frac={args.frac})"
+            sampled = sample_simple(df, args.frac, seed=args.seed)
 
-    # informe rápido
+    # Imprime distribución
     total = sampled.count()
     dist = (
         sampled.groupBy(label_col).count()
@@ -233,7 +294,8 @@ def main():
     print(f"[sample] modo={mode} | total={total}")
     dist.show(truncate=False)
 
-    write_output(sampled, args.output, fmt=args.format, coalesce=int(args.coalesce))
+    # Escribe salida robusta
+    write_output(sampled, args.output, fmt=args.format, n_out_partitions=int(args.coalesce))
     print(f"✅ sample → {args.output} [{args.format}]")
 
     spark.stop()
@@ -241,3 +303,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
