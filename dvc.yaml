@@ -362,7 +362,7 @@ stages:
       python scripts/absa/build_absa_dataset.py
       --spans_parquet reports/absa/ate_spans.parquet
       --map_parquet   reports/absa/ate_spans_mapped.parquet
-      --sentiment_parquet reports/albert_sample_30pct/infer_full/predictions.parquet
+      --sentiment_parquet reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
       --id_col review_id
       --span_text_col aspect_span
       --category_col aspect_norm
@@ -372,7 +372,7 @@ stages:
       - scripts/absa/build_absa_dataset.py
       - reports/absa/ate_spans.parquet
       - reports/absa/ate_spans_mapped.parquet
-      - reports/albert_sample_30pct/infer_full/predictions.parquet
+      - reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
       - params.yaml
     outs:
       - reports/absa/final_all:

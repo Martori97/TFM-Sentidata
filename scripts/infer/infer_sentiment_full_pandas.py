@@ -4,6 +4,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from tqdm import tqdm
 import yaml
+import os  # añadido
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -86,6 +87,12 @@ def run_inference(df, tokenizer, model, device, batch_size, max_length, id_col, 
 
 def main():
     args = parse_args()
+
+    # Crear carpeta destino al inicio
+    output_dir = os.path.dirname(args.output_parquet)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+
     params = load_params(args.params_file)
     batch_size = params.get("batch_size", 128)
     max_length = params.get("max_length", 192)
@@ -106,6 +113,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
 

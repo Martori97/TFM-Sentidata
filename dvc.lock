@@ -880,14 +880,14 @@ stages:
       size: 35793367
   absa_build_all:
     cmd: "python scripts/absa/build_absa_dataset.py --spans_parquet reports/absa/ate_spans.parquet
-      --map_parquet   reports/absa/ate_spans_mapped.parquet --sentiment_parquet reports/albert_sample_30pct/eval/predictions.parquet
+      --map_parquet   reports/absa/ate_spans_mapped.parquet --sentiment_parquet reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
       --id_col review_id --span_text_col aspect_span --category_col aspect_norm --sentiment_col
       pred_3 --output_dir reports/absa/final_all\n"
     deps:
     - path: params.yaml
       hash: md5
-      md5: 8f0c29b7cc25c7e8c4cc69fdabaad105
-      size: 5446
+      md5: 8465281c1d6fce48d43dd12b939f12c9
+      size: 5766
     - path: reports/absa/ate_spans.parquet
       hash: md5
       md5: de6928cf97aec2601266f1c3f7cf6f39
@@ -896,10 +896,10 @@ stages:
       hash: md5
       md5: 6c9a99ed713accecd123221adaf1cb7e
       size: 35793367
-    - path: reports/albert_sample_30pct/eval/predictions.parquet
+    - path: reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
       hash: md5
-      md5: 87938fb8ebe761a3cf982fb371a7cd71
-      size: 2781658
+      md5: 16152215958df9193ea75fcc01d43017
+      size: 57337966
     - path: scripts/absa/build_absa_dataset.py
       hash: md5
       md5: 37777cd65e975fafb0adb50ead1c0e9e
@@ -907,9 +907,9 @@ stages:
     outs:
     - path: reports/absa/final_all
       hash: md5
-      md5: 224c1ce781abf4bd821c31a139fc3236.dir
-      size: 54695528
-      nfiles: 73
+      md5: 9c2a5bdf2610b5a8f05dff941a6c95ee.dir
+      size: 33218869
+      nfiles: 77
   absa_eval_thr90:
     cmd: "python scripts/absa/metrics_from_predictions.py --predictions_parquet reports/albert_sample_30pct/eval/predictions.parquet
       --out_dir reports/absa/phase2_eval_thr90 --neutral_threshold 0.90\n"
@@ -1003,3 +1003,39 @@ stages:
       md5: 015c03bc808ac43ac453e553c632bec7.dir
       size: 495361508
       nfiles: 20
+  infer_sentiment_full_pandas:
+    cmd: python scripts/infer/infer_sentiment_full_pandas.py --model_dir 
+      models/albert_sample_30pct --input_parquet 
+      data/trusted/reviews_full_snapshot.parquet --output_parquet 
+      reports/albert_sample_30pct/infer_full_pandas/predictions.parquet 
+      --params_file params.yaml
+    deps:
+    - path: data/trusted/reviews_full_snapshot.parquet
+      hash: md5
+      md5: 015c03bc808ac43ac453e553c632bec7.dir
+      size: 495361508
+      nfiles: 20
+    - path: models/albert_sample_30pct
+      hash: md5
+      md5: 923ed8e16d5c6e248094aff1bf38c3cf.dir
+      size: 49784962
+      nfiles: 8
+    - path: params.yaml
+      hash: md5
+      md5: 8465281c1d6fce48d43dd12b939f12c9
+      size: 5766
+    - path: scripts/infer/infer_sentiment_full_pandas.py
+      hash: md5
+      md5: 4d6ce84c3b555a0d7050301b07641dd8
+      size: 4054
+    params:
+      params.yaml:
+        infer_sentiment_full_pandas.batch_size: 64
+        infer_sentiment_full_pandas.id_col: review_id
+        infer_sentiment_full_pandas.max_length: 192
+        infer_sentiment_full_pandas.text_col: review_text_clean
+    outs:
+    - path: reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+      hash: md5
+      md5: 16152215958df9193ea75fcc01d43017
+      size: 57337966
