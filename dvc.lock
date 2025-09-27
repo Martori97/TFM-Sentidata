@@ -29,17 +29,17 @@ stages:
     outs:
     - path: data/landing/sephora/delta
       hash: md5
-      md5: 55a7b5a693bd0ed52f0c1608c6c9cd7e.dir
+      md5: e607cbe18c36672d203e1eba0e0cca8b.dir
       size: 230118963
       nfiles: 172
   trusted_clean_driver:
-    cmd: "python scripts/data_cleaning/trusted_clean_driver.py --input  data/landing/sephora/delta
-      --output data/trusted/sephora_clean\n"
+    cmd: python scripts/data_cleaning/trusted_clean_driver.py --input 
+      data/landing/sephora/delta --output data/trusted/sephora_clean
     deps:
     - path: data/landing/sephora/delta
       hash: md5
-      md5: 0e40bd239d8164baa8d31fdb702b9c3b.dir
-      size: 230119217
+      md5: e607cbe18c36672d203e1eba0e0cca8b.dir
+      size: 230118963
       nfiles: 172
     - path: scripts/data_cleaning/trusted_clean_driver.py
       hash: md5
@@ -50,70 +50,20 @@ stages:
       md5: e9f9c94752272c42f4c257b369e68e8b
       size: 4336
     outs:
-    - path: data/trusted/sephora_clean/product_info
+    - path: data/trusted/sephora_clean
       hash: md5
-      md5: c905a19719f033ddccec1a68bcef2ad7.dir
-      size: 2837914
-      nfiles: 10
-    - path: data/trusted/sephora_clean/reviews_0_250
-      hash: md5
-      md5: 716b3b37465f3d6ee1231068c7f3dd4d.dir
-      size: 267928038
-      nfiles: 48
-    - path: data/trusted/sephora_clean/reviews_1250_end
-      hash: md5
-      md5: 6e72c1d952c2195505ed3c10d719671a.dir
-      size: 24234532
-      nfiles: 48
-    - path: data/trusted/sephora_clean/reviews_250_500
-      hash: md5
-      md5: 651412b39ced08b32f61ddaf40fdd62b.dir
-      size: 95799300
-      nfiles: 48
-    - path: data/trusted/sephora_clean/reviews_500_750
-      hash: md5
-      md5: eb75b90c288a3e12ae4f23bd3f9d969a.dir
-      size: 54040580
-      nfiles: 48
-    - path: data/trusted/sephora_clean/reviews_750_1250
-      hash: md5
-      md5: 4b19340bdf86d8690d11600f086387b8.dir
-      size: 56044298
-      nfiles: 48
+      md5: 54d2cd33712d2bc30f2fcf9c0c565ea7.dir
+      size: 500916699
+      nfiles: 252
   merge_trusted_reviews:
-    cmd: "python scripts/data_cleaning/merge_trusted_reviews.py --input-dir data/trusted/sephora_clean
-      --output    data/trusted/reviews_full --format delta --coalesce  64\n"
+    cmd: python scripts/data_cleaning/merge_trusted_reviews.py --input-dir 
+      data/trusted/sephora_clean --output data/trusted/reviews_full
     deps:
-    - path: data/trusted/sephora_clean/product_info
+    - path: data/trusted/sephora_clean
       hash: md5
-      md5: 3577e02353a591c15b8c577aa684ab64.dir
-      size: 2837914
-      nfiles: 10
-    - path: data/trusted/sephora_clean/reviews_0_250
-      hash: md5
-      md5: cbb8686a5ddcda1718e9e769dec402a7.dir
-      size: 267928038
-      nfiles: 48
-    - path: data/trusted/sephora_clean/reviews_1250_end
-      hash: md5
-      md5: 8072752805ff8578438714cb65f5610e.dir
-      size: 24234532
-      nfiles: 48
-    - path: data/trusted/sephora_clean/reviews_250_500
-      hash: md5
-      md5: 7151dafb09764812dc79b98df3e62c73.dir
-      size: 95799300
-      nfiles: 48
-    - path: data/trusted/sephora_clean/reviews_500_750
-      hash: md5
-      md5: b06b5bcc8f0cfb1cdf76e71e6b3bfbd1.dir
-      size: 54040580
-      nfiles: 48
-    - path: data/trusted/sephora_clean/reviews_750_1250
-      hash: md5
-      md5: 2724f4e3837f8d9111976fa0d05fa6db.dir
-      size: 56044298
-      nfiles: 48
+      md5: 54d2cd33712d2bc30f2fcf9c0c565ea7.dir
+      size: 500916699
+      nfiles: 252
     - path: scripts/data_cleaning/merge_trusted_reviews.py
       hash: md5
       md5: 328357b16b26547e2b06709acb583b63
@@ -121,7 +71,7 @@ stages:
     outs:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
+      md5: a1409c92f8c045c37286352b55beb36c.dir
       size: 495378510
       nfiles: 18
   eda_full:
@@ -130,13 +80,13 @@ stages:
     deps:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
+      md5: a1409c92f8c045c37286352b55beb36c.dir
       size: 495378510
       nfiles: 18
     - path: params.yaml
       hash: md5
-      md5: 3322653cf5ce2b5dc6494dde8d8a6dde
-      size: 2207
+      md5: fdf1c225423e3744f04cf8d3e1a8678f
+      size: 5836
     - path: scripts/EDA/eda_reviews.py
       hash: md5
       md5: 6235ecad747eb664623c25c539bb2a67

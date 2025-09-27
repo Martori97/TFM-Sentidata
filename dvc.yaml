@@ -20,37 +20,19 @@ stages:
       - data/landing/sephora/delta
 
   trusted_clean_driver:
-    cmd: >
-      python scripts/data_cleaning/trusted_clean_driver.py
-      --input  data/landing/sephora/delta
-      --output data/trusted/sephora_clean
+    cmd: python scripts/data_cleaning/trusted_clean_driver.py --input data/landing/sephora/delta --output data/trusted/sephora_clean
     deps:
       - scripts/data_cleaning/trusted_clean_driver.py
       - scripts/data_cleaning/trusted_clean_single.py
       - data/landing/sephora/delta
     outs:
-      - data/trusted/sephora_clean/product_info
-      - data/trusted/sephora_clean/reviews_0_250
-      - data/trusted/sephora_clean/reviews_250_500
-      - data/trusted/sephora_clean/reviews_500_750
-      - data/trusted/sephora_clean/reviews_750_1250
-      - data/trusted/sephora_clean/reviews_1250_end
+      - data/trusted/sephora_clean
 
   merge_trusted_reviews:
-    cmd: >
-      python scripts/data_cleaning/merge_trusted_reviews.py
-      --input-dir data/trusted/sephora_clean
-      --output    data/trusted/reviews_full
-      --format delta
-      --coalesce  64
+    cmd: python scripts/data_cleaning/merge_trusted_reviews.py --input-dir data/trusted/sephora_clean --output data/trusted/reviews_full
     deps:
       - scripts/data_cleaning/merge_trusted_reviews.py
-      - data/trusted/sephora_clean/product_info
-      - data/trusted/sephora_clean/reviews_0_250
-      - data/trusted/sephora_clean/reviews_250_500
-      - data/trusted/sephora_clean/reviews_500_750
-      - data/trusted/sephora_clean/reviews_750_1250
-      - data/trusted/sephora_clean/reviews_1250_end
+      - data/trusted/sephora_clean
     outs:
       - data/trusted/reviews_full
 
