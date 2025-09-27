@@ -29,8 +29,8 @@ stages:
     outs:
     - path: data/landing/sephora/delta
       hash: md5
-      md5: 0e40bd239d8164baa8d31fdb702b9c3b.dir
-      size: 230119217
+      md5: 55a7b5a693bd0ed52f0c1608c6c9cd7e.dir
+      size: 230118963
       nfiles: 172
   trusted_clean_driver:
     cmd: "python scripts/data_cleaning/trusted_clean_driver.py --input  data/landing/sephora/delta
