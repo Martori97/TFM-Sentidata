@@ -1092,3 +1092,56 @@ stages:
       md5: 559085834cd433896cc671f4d2e970c1.dir
       size: 58966
       nfiles: 3
+  infer_ulta_top50_albert:
+    cmd: "python scripts/infer/infer_top_upvoted_ulta.py --backend albert --input_delta
+      'data/trusted/ulta_clean/Ulta Skincare Reviews' --model_dir models/albert_sample_30pct
+      --top_n 50 --max_len 192 --batch_size 64 --output_parquet reports/albert_sample_30pct/ulta_top50/predictions.parquet
+      --coalesce 1 --demote_neutral 1 --min_neutral_prob 0.90\n"
+    deps:
+    - path: data/trusted/ulta_clean/Ulta Skincare Reviews
+      hash: md5
+      md5: beebb92e4be0fdb3bc2b5731308aa47c.dir
+      size: 3627645
+      nfiles: 24
+    - path: models/albert_sample_30pct
+      hash: md5
+      md5: 414fcb18e0f5dd139aa3663e15a99aa6.dir
+      size: 49789593
+      nfiles: 8
+    - path: scripts/infer/infer_top_upvoted_ulta.py
+      hash: md5
+      md5: 38047141fadb6c2443cf255888a88e75
+      size: 13255
+    outs:
+    - path: reports/albert_sample_30pct/ulta_top50
+      hash: md5
+      md5: 62d93a7c7b34a9d6ed8f6b8393439379.dir
+      size: 51986
+      nfiles: 12
+  infer_ulta_top50_rf:
+    cmd: "python scripts/infer/infer_top_upvoted_ulta.py --backend rf --input_delta
+      'data/trusted/ulta_clean/Ulta Skincare Reviews' --model_dir models/sentiment_rf_sample
+      --top_n 50 --output_parquet reports/sentiment_rf_sample/ulta_top50/predictions.parquet
+      --coalesce 1 --demote_neutral 1 --min_neutral_prob 0.90 --use_title 1 --use_extra
+      1\n"
+    deps:
+    - path: data/trusted/ulta_clean/Ulta Skincare Reviews
+      hash: md5
+      md5: beebb92e4be0fdb3bc2b5731308aa47c.dir
+      size: 3627645
+      nfiles: 24
+    - path: models/sentiment_rf_sample
+      hash: md5
+      md5: 3a203eb3349d6e8ffed950f232b2d7a2.dir
+      size: 1482049207
+      nfiles: 3
+    - path: scripts/infer/infer_top_upvoted_ulta.py
+      hash: md5
+      md5: 38047141fadb6c2443cf255888a88e75
+      size: 13255
+    outs:
+    - path: reports/sentiment_rf_sample/ulta_top50
+      hash: md5
+      md5: 70a129195afd12f3303c84021862abfb.dir
+      size: 49543
+      nfiles: 12

@@ -364,24 +364,42 @@ stages:
     outs:
       - reports/sentiment_rf_sample/eval
 
-  infer_rf_all:
+  infer_ulta_top50_albert:
     cmd: >
-      python scripts/training/infer_random_forest.py
-      --model-dir models/sentiment_rf_sample
-      --input data/trusted/reviews_full
-      --output-dir reports/sentiment_rf_sample/infer
-      --text-col review_text --id-col review_id --use-extra 1
-      &&
-      python scripts/evaluation/metrics_overall.py
-      --preds reports/sentiment_rf_sample/infer/test_predictions.parquet
-      --out_dir reports/sentiment_rf_sample/infer_eval_full
+      python scripts/infer/infer_top_upvoted_ulta.py
+      --backend albert
+      --input_delta 'data/trusted/ulta_clean/Ulta Skincare Reviews'
+      --model_dir models/albert_sample_30pct
+      --top_n 50
+      --max_len 192
+      --batch_size 64
+      --output_parquet reports/albert_sample_30pct/ulta_top50/predictions.parquet
+      --coalesce 1
+      --demote_neutral 1
+      --min_neutral_prob 0.90
     deps:
-      - scripts/training/infer_random_forest.py
-      - scripts/evaluation/metrics_overall.py
-      - models/sentiment_rf_sample
-      - data/trusted/reviews_full
+      - scripts/infer/infer_top_upvoted_ulta.py
+      - models/albert_sample_30pct
+      - 'data/trusted/ulta_clean/Ulta Skincare Reviews'
     outs:
-      - reports/sentiment_rf_sample/infer
-      - reports/sentiment_rf_sample/infer_eval_full
+      - reports/albert_sample_30pct/ulta_top50
 
-
+  infer_ulta_top50_rf:
+    cmd: >
+      python scripts/infer/infer_top_upvoted_ulta.py
+      --backend rf
+      --input_delta 'data/trusted/ulta_clean/Ulta Skincare Reviews'
+      --model_dir models/sentiment_rf_sample
+      --top_n 50
+      --output_parquet reports/sentiment_rf_sample/ulta_top50/predictions.parquet
+      --coalesce 1
+      --demote_neutral 1
+      --min_neutral_prob 0.90
+      --use_title 1
+      --use_extra 1
+    deps:
+      - scripts/infer/infer_top_upvoted_ulta.py
+      - models/sentiment_rf_sample
+      - 'data/trusted/ulta_clean/Ulta Skincare Reviews'
+    outs:
+      - reports/sentiment_rf_sample/ulta_top50
