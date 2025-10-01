@@ -1,57 +1,49 @@
+# -*- coding: utf-8 -*-
+# Convierte CSV -> (Sephora: Delta) | (Ulta: Parquet)
+
 import os
 from pyspark.sql import SparkSession
 from delta import configure_spark_with_delta_pip
 
-# Inicializa Spark con soporte para Delta Lake
-builder = SparkSession.builder \
-    .appName("Conversión a Delta Lake") \
-    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
-    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
-    .config("spark.master", "local[*]") \
-    .config("spark.sql.warehouse.dir", "file:///tmp/spark-warehouse") \
-    .config("spark.hadoop.fs.defaultFS", "file:///") \
-    .config("spark.driver.memory", "4g") \
-    .config("spark.executor.memory", "4g")
-
+builder = (
+    SparkSession.builder
+    .appName("CSV->Delta/Parquet")
+    .config("spark.sql.shuffle.partitions", "8")
+    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+)
 spark = configure_spark_with_delta_pip(builder).getOrCreate()
 
-# Carpetas de entrada y salida
-datasets = {
-    "sephora": {
-        "input_folder": "data/landing/sephora/raw",
-        "output_folder": "data/landing/sephora/delta"
-    },
-    "ulta": {
-        "input_folder": "data/landing/ulta/raw",
-        "output_folder": "data/landing/ulta/delta"
-    }
-}
+BASE = "data/landing"
+SEPH_RAW = os.path.join(BASE, "sephora/raw")
+SEPH_DEL = os.path.join(BASE, "sephora/delta")
+ULTA_RAW = os.path.join(BASE, "ulta/raw")
+ULTA_PAR = os.path.join(BASE, "ulta/parquet")
 
-# Procesar cada carpeta
-for nombre, rutas in datasets.items():
-    input_folder = rutas["input_folder"]
-    output_base = rutas["output_folder"]
+os.makedirs(SEPH_DEL, exist_ok=True)
+os.makedirs(ULTA_PAR, exist_ok=True)
 
-    print(f"Procesando dataset: {nombre}")
-    if not os.path.exists(input_folder):
-        print(f"Carpeta no encontrada: {input_folder}")
-        continue
+def _csvs(path): return [f for f in os.listdir(path) if f.lower().endswith(".csv")]
 
-    for archivo in os.listdir(input_folder):
-        if archivo.endswith(".csv"):
-            ruta_csv = os.path.join(input_folder, archivo)
-            nombre_base = os.path.splitext(archivo)[0]
-            nombre_base_sanitizado = nombre_base.replace("-", "_")
-            ruta_delta = os.path.join(output_base, nombre_base_sanitizado)
+def convert():
+    # Sephora -> Delta
+    for f in _csvs(SEPH_RAW):
+        name = os.path.splitext(f)[0]  # p.ej. reviews_0-250
+        src = os.path.join(SEPH_RAW, f)
+        dst = os.path.join(SEPH_DEL, name)
+        df = spark.read.option("header", True).csv(src)
+        df.write.format("delta").mode("overwrite").save(dst)
+        print(f"[OK] Sephora {f} -> DELTA -> {dst}")
 
-            os.makedirs(ruta_delta, exist_ok=True)
+    # Ulta -> Parquet (no se usa después)
+    if os.path.isdir(ULTA_RAW):
+        for f in _csvs(ULTA_RAW):
+            name = os.path.splitext(f)[0]
+            src = os.path.join(ULTA_RAW, f)
+            dst = os.path.join(ULTA_PAR, name)
+            df = spark.read.option("header", True).csv(src)
+            df.write.mode("overwrite").parquet(dst)
+            print(f"[OK] Ulta {f} -> PARQUET -> {dst}")
 
-            print(f"Convirtiendo: {archivo} → {ruta_delta}")
-
-            df = spark.read.option("header", True).option("inferSchema", True).csv(ruta_csv)
-            df = df.dropna(how="all")
-            df.write.format("delta").mode("overwrite").save(ruta_delta)
-
-            print(f"Guardado en: {ruta_delta}")
-
-spark.stop()
+if __name__ == "__main__":
+    convert()

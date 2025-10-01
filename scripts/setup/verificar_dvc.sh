@@ -1,51 +1,61 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "=== Verificación de DVC en el proyecto ==="
+echo "=== Verificación de DVC / Estructura del proyecto ==="
 
-# Verificar existencia de dvc.yaml
-if [ -f "dvc.yaml" ]; then
-    echo "[OK] dvc.yaml encontrado"
+# 1) dvc.yaml
+if [[ -f "dvc.yaml" ]]; then
+  echo "[OK] dvc.yaml encontrado"
 else
-    echo "[ERROR] dvc.yaml no encontrado"
-    exit 1
+  echo "[ERROR] dvc.yaml no encontrado"
+  exit 1
 fi
 
-# Mostrar grafo del pipeline (opcional)
-#echo -e "\n[→] Grafo del pipeline (dvc dag):"
-#dvc dag || { echo "[ERROR] Error al generar el DAG"; exit 1; }
+# 2) Landing procesado
+echo -e "\n[→] Verificando landing procesado:"
+SEPH_DELTA="data/landing/sephora/delta"
+ULTA_PARQ="data/landing/ulta/parquet"
 
-# Comprobar que los datos en landing existen
-echo -e "\n[→] Verificando datos convertidos a Delta en zona landing:"
-if [ -d "data/landing/sephora/delta" ] && [ -d "data/landing/ulta/delta" ]; then
-    find data/landing/sephora/delta -type f -name "*.parquet" | head -n 3
-    find data/landing/ulta/delta -type f -name "*.parquet" | head -n 3
-    echo "[OK] Archivos Delta encontrados en landing"
+[[ -d "$SEPH_DELTA" ]] && echo "[OK] Sephora Delta: $SEPH_DELTA" || { echo "[ERROR] Falta $SEPH_DELTA"; exit 1; }
+[[ -d "$ULTA_PARQ"  ]] && echo "[OK] Ulta Parquet: $ULTA_PARQ"   || echo "[WARN] Falta $ULTA_PARQ (no crítico)"
+
+find "$SEPH_DELTA" -type f | head -n 3 || true
+[[ -d "$ULTA_PARQ" ]] && find "$ULTA_PARQ" -type f | head -n 3 || true
+
+# 3) Trusted (solo Sephora)
+echo -e "\n[→] Verificando trusted (solo Sephora):"
+TRUSTED_SEPH="data/trusted/sephora_clean"
+if [[ -d "$TRUSTED_SEPH" ]]; then
+  echo "[OK] $TRUSTED_SEPH"
+  find "$TRUSTED_SEPH" -type f | head -n 3 || true
 else
-    echo "[ERROR] Faltan carpetas en data/landing"
-    exit 1
+  echo "[ERROR] Falta $TRUSTED_SEPH"
+  exit 1
 fi
 
-# Comprobar que los datos en trusted existen
-echo -e "\n[→] Verificando datos en zona trusted:"
-if [ -d "data/trusted/sephora_clean" ] && [ -d "data/trusted/ulta_clean" ]; then
-    find data/trusted/sephora_clean -type f | head -n 3
-    find data/trusted/ulta_clean -type f | head -n 3
-    echo "[OK] Archivos encontrados en trusted"
-else
-    echo "[ERROR] Faltan carpetas en data/trusted"
-    exit 1
-fi
+# 4) Exploitation (Delta + Parquet + CSV)
+echo -e "\n[→] Verificando exploitation (Delta + Parquet + CSV):"
+OUT_DELTA="data/exploitation/modelos_input/reviews_base_delta"
+OUT_PARQ="data/exploitation/modelos_input/reviews_base_parquet"
+OUT_CSV="data/exploitation/modelos_input/reviews_base_csv"
 
-# Verificar si están ignorados por Git
+[[ -d "$OUT_DELTA" ]] && echo "[OK] Delta base: $OUT_DELTA" || echo "[WARN] Aún no existe $OUT_DELTA"
+[[ -d "$OUT_PARQ"  ]] && echo "[OK] Parquet base: $OUT_PARQ" || echo "[WARN] Aún no existe $OUT_PARQ"
+[[ -d "$OUT_CSV"   ]] && echo "[OK] CSV base: $OUT_CSV" || echo "[WARN] Aún no existe $OUT_CSV"
+
+# 5) .gitignore (data y models deben ignorarse)
 echo -e "\n[→] Verificando .gitignore:"
-if grep -q "data/landing/" .gitignore && grep -q "data/trusted/" .gitignore; then
-    echo "[OK] data/landing y data/trusted están en .gitignore"
+if grep -qE "^data/$" .gitignore && grep -qE "^models/$" .gitignore; then
+  echo "[OK] data/ y models/ ignorados"
 else
-    echo "[ADVERTENCIA] Revisa que data/landing y data/trusted estén correctamente ignorados"
+  echo "[WARN] Asegúrate de ignorar data/ y models/ en .gitignore"
 fi
 
-# Verificar estado del pipeline
-echo -e "\n[→] Estado del pipeline (dvc status):"
-dvc status
+# 6) DVC status y remotes
+echo -e "\n[→] dvc status:"
+dvc status || true
 
-echo -e "\n[FIN] Verificación completa."
+echo -e "\n[→] dvc remote list:"
+dvc remote list || true
+
+echo -e "\n[FIN] Verificación completada."

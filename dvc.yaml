@@ -120,25 +120,6 @@ stages:
     outs:
       - data/exploitation/modelos_input/sample_tvt
 
-  make_rest_from_full:
-    cmd: >
-      python scripts/data_cleaning/make_rest_from_full.py
-      --full data/trusted/reviews_full
-      --sample-root data/exploitation/modelos_input/sample_tvt
-      --sample-delta data/trusted/reviews_sample_30pct
-      --out data/exploitation/modelos_input/rest_from_full
-      --format parquet
-      --coalesce 64
-    deps:
-      - scripts/data_cleaning/make_rest_from_full.py
-      - data/trusted/reviews_full
-      - data/exploitation/modelos_input/sample_tvt/train
-      - data/exploitation/modelos_input/sample_tvt/val
-      - data/exploitation/modelos_input/sample_tvt/test
-      - data/trusted/reviews_sample_30pct
-    outs:
-      - data/exploitation/modelos_input/rest_from_full
-
   train_albert_sample:
     cmd: >
       MLFLOW_RUN_NAME=albert_sample_30pct
@@ -169,19 +150,6 @@ stages:
     outs:
       - reports/albert_sample_30pct/eval
 
-  evaluate_albert_rest:
-    cmd: >
-      python scripts/training/evaluate_albert.py
-      --model_dir models/albert_sample_30pct
-      --test_parquet data/exploitation/modelos_input/rest_from_full
-      --output_dir reports/albert_sample_30pct/eval_rest
-      --max_len 192
-    deps:
-      - scripts/training/evaluate_albert.py
-      - models/albert_sample_30pct
-      - data/exploitation/modelos_input/rest_from_full
-    outs:
-      - reports/albert_sample_30pct/eval_rest
 
   merge_reviews_product_info:
     cmd: >
@@ -360,4 +328,78 @@ stages:
       - reports/absa/final_all:
           persist: true
 
+  train_rf_sample:
+    cmd: >
+      MLFLOW_RUN_NAME=rf_sample_30pct
+      python scripts/training/train_random_forest.py
+      --train data/exploitation/modelos_input/sample_tvt/train
+      --val   data/exploitation/modelos_input/sample_tvt/val
+      --model-out models/sentiment_rf_sample
+      --params params.yaml
+    deps:
+      - scripts/training/train_random_forest.py
+      - data/exploitation/modelos_input/sample_tvt/train
+      - data/exploitation/modelos_input/sample_tvt/val
+      - params.yaml
+    outs:
+      - models/sentiment_rf_sample
+      - reports/sentiment_rf  
 
+  evaluate_rf_sample:
+    cmd: >
+      python scripts/training/infer_random_forest.py
+      --model-dir models/sentiment_rf_sample
+      --input data/exploitation/modelos_input/sample_tvt/test
+      --output-dir reports/sentiment_rf_sample/eval
+      --text-col review_text --id-col review_id --use-extra 1
+      &&
+      python scripts/evaluation/metrics_overall.py
+      --preds reports/sentiment_rf_sample/eval/test_predictions.parquet
+      --out_dir reports/sentiment_rf_sample/eval
+    deps:
+      - scripts/training/infer_random_forest.py
+      - scripts/evaluation/metrics_overall.py
+      - models/sentiment_rf_sample
+      - data/exploitation/modelos_input/sample_tvt/test
+    outs:
+      - reports/sentiment_rf_sample/eval
+
+  infer_ulta_top50_albert:
+    cmd: >
+      python scripts/infer/infer_top_upvoted_ulta.py
+      --backend albert
+      --input_delta 'data/trusted/ulta_clean/Ulta Skincare Reviews'
+      --model_dir models/albert_sample_30pct
+      --top_n 50
+      --max_len 192
+      --batch_size 64
+      --output_parquet reports/albert_sample_30pct/ulta_top50/predictions.parquet
+      --coalesce 1
+      --demote_neutral 1
+      --min_neutral_prob 0.90
+    deps:
+      - scripts/infer/infer_top_upvoted_ulta.py
+      - models/albert_sample_30pct
+      - 'data/trusted/ulta_clean/Ulta Skincare Reviews'
+    outs:
+      - reports/albert_sample_30pct/ulta_top50
+
+  infer_ulta_top50_rf:
+    cmd: >
+      python scripts/infer/infer_top_upvoted_ulta.py
+      --backend rf
+      --input_delta 'data/trusted/ulta_clean/Ulta Skincare Reviews'
+      --model_dir models/sentiment_rf_sample
+      --top_n 50
+      --output_parquet reports/sentiment_rf_sample/ulta_top50/predictions.parquet
+      --coalesce 1
+      --demote_neutral 1
+      --min_neutral_prob 0.90
+      --use_title 1
+      --use_extra 1
+    deps:
+      - scripts/infer/infer_top_upvoted_ulta.py
+      - models/sentiment_rf_sample
+      - 'data/trusted/ulta_clean/Ulta Skincare Reviews'
+    outs:
+      - reports/sentiment_rf_sample/ulta_top50

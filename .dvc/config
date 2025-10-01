@@ -1,2 +1,5 @@
 [core]
     autostage = true
+    remote = modelstore
+['remote "modelstore"']
+    url = /mnt/g/Mi unidad/TFM-Sentidata-DVC

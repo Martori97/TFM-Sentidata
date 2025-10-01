@@ -1,6 +1,52 @@
-venv/
+# === DATA & MODELS (se versionan con DVC, no en Git) ===
+data/**
+!data/.gitkeep
+
+models/**
+!models/.gitkeep
+
+# DVC cache y temporales (mantén .dvc/ salvo cache/tmp)
+.dvc/cache/
+.dvc/tmp/
+
+# Spark / Hive locales
+spark-warehouse/
+.metastore_db/
+derby.log
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+.env
+*.egg-info/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# SO / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+data/
+models/
+.dvc/cache/
+report/
+venv/
+*.parquet
+*.delta
+*.pt
+*.bin
+*.safetensors
+notebooks/*_out.ipynb
+
+# Ignore Windows ADS leftovers
+*:Zone.Identifier
+reports/eda/compare_full_vs_sample_30pct
 .env
 data/landing/
 data/trusted/

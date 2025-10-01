@@ -24,13 +24,13 @@ stages:
       nfiles: 6
     - path: scripts/data_cleaning/conversion_a_delta.py
       hash: md5
-      md5: c3a4ec2564051338d2f39b94ceff02c7
-      size: 2042
+      md5: f2e92a0eb8508d5d7f9f8543545af804
+      size: 1737
     outs:
     - path: data/landing/sephora/delta
       hash: md5
-      md5: d4f0fd92075cbe8ac231f37cc933f97b.dir
-      size: 230119217
+      md5: 0d97cdd54e1d17a771fd7e1020f84f1f.dir
+      size: 230118963
       nfiles: 172
   trusted_clean_driver:
     cmd: python scripts/data_cleaning/trusted_clean_driver.py --input 
@@ -38,13 +38,13 @@ stages:
     deps:
     - path: data/landing/sephora/delta
       hash: md5
-      md5: d4f0fd92075cbe8ac231f37cc933f97b.dir
-      size: 230119217
+      md5: 0d97cdd54e1d17a771fd7e1020f84f1f.dir
+      size: 230118963
       nfiles: 172
     - path: scripts/data_cleaning/trusted_clean_driver.py
       hash: md5
-      md5: 0022c1ecb46a3cc4bf95efd3523fec79
-      size: 804
+      md5: 12fb524919587f142c3e2d8a0b638787
+      size: 805
     - path: scripts/data_cleaning/trusted_clean_single.py
       hash: md5
       md5: e9f9c94752272c42f4c257b369e68e8b
@@ -52,18 +52,18 @@ stages:
     outs:
     - path: data/trusted/sephora_clean
       hash: md5
-      md5: 7ed7a6bd8f62c8df8b66197bf48f17a4.dir
-      size: 500884662
-      nfiles: 250
+      md5: 53a01804458cea69bf59b941bcf22ced.dir
+      size: 500916699
+      nfiles: 252
   merge_trusted_reviews:
     cmd: python scripts/data_cleaning/merge_trusted_reviews.py --input-dir 
       data/trusted/sephora_clean --output data/trusted/reviews_full
     deps:
     - path: data/trusted/sephora_clean
       hash: md5
-      md5: 7ed7a6bd8f62c8df8b66197bf48f17a4.dir
-      size: 500884662
-      nfiles: 250
+      md5: 53a01804458cea69bf59b941bcf22ced.dir
+      size: 500916699
+      nfiles: 252
     - path: scripts/data_cleaning/merge_trusted_reviews.py
       hash: md5
       md5: 328357b16b26547e2b06709acb583b63
@@ -71,7 +71,7 @@ stages:
     outs:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: f45546987a9eeb727134fa829a2ad82f.dir
+      md5: 14aa2cd5dcb06e55d1caedefa145be1e.dir
       size: 495378510
       nfiles: 18
   eda_full:
@@ -80,13 +80,13 @@ stages:
     deps:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 24df671359b0da525dcb63a50d0b8f53.dir
+      md5: 14aa2cd5dcb06e55d1caedefa145be1e.dir
       size: 495378510
       nfiles: 18
     - path: params.yaml
       hash: md5
-      md5: 3322653cf5ce2b5dc6494dde8d8a6dde
-      size: 2207
+      md5: fdf1c225423e3744f04cf8d3e1a8678f
+      size: 5836
     - path: scripts/EDA/eda_reviews.py
       hash: md5
       md5: 6235ecad747eb664623c25c539bb2a67
@@ -170,13 +170,13 @@ stages:
     deps:
     - path: data/trusted/reviews_sample_30pct
       hash: md5
-      md5: 1a6ae9d8a28fce4d2d822fe79938cfa9.dir
-      size: 143184372
-      nfiles: 50
+      md5: dda7a837576a9bc27e38d4bc016e4ea6.dir
+      size: 152150914
+      nfiles: 130
     - path: params.yaml
       hash: md5
-      md5: 3322653cf5ce2b5dc6494dde8d8a6dde
-      size: 2207
+      md5: fdf1c225423e3744f04cf8d3e1a8678f
+      size: 5836
     - path: scripts/training/prepare_test_parquet.py
       hash: md5
       md5: 347ee9d1a01887aea96a63ae36cad088
@@ -184,8 +184,8 @@ stages:
     outs:
     - path: data/exploitation/modelos_input/sample_tvt
       hash: md5
-      md5: f18174108ca68949ff705521269f5715.dir
-      size: 141591057
+      md5: 3a7ea2d374caccb27abc63bc3d96332f.dir
+      size: 141802294
       nfiles: 3
   train_albert_sample:
     cmd: "MLFLOW_RUN_NAME=albert_sample_30pct python scripts/training/train_albert_from_parquets.py
@@ -194,18 +194,18 @@ stages:
     deps:
     - path: data/exploitation/modelos_input/sample_tvt/train
       hash: md5
-      md5: 9ec6dd8cd7e694bd283e3145aaba615b.dir
-      size: 105904923
+      md5: 70f82340d294d46c0c4e27d7b72152db.dir
+      size: 106162265
       nfiles: 1
     - path: data/exploitation/modelos_input/sample_tvt/val
       hash: md5
-      md5: e664b7e6e2edb77b523f27de415196a3.dir
-      size: 14323218
+      md5: 30628d4ac7af0e8b6d608315f0156f6b.dir
+      size: 14307311
       nfiles: 1
     - path: params.yaml
       hash: md5
-      md5: 3322653cf5ce2b5dc6494dde8d8a6dde
-      size: 2207
+      md5: fdf1c225423e3744f04cf8d3e1a8678f
+      size: 5836
     - path: scripts/training/train_albert_from_parquets.py
       hash: md5
       md5: abf0b5fb9563be466a538cf21764d5ad
@@ -213,8 +213,8 @@ stages:
     outs:
     - path: models/albert_sample_30pct
       hash: md5
-      md5: e45ca43f22c5129254eef74a3224e7e9.dir
-      size: 49784962
+      md5: 96e1d0b99ddf46e6be30beb287c0e2fe.dir
+      size: 49789593
       nfiles: 8
   evaluate_albert_sample:
     cmd: "PYTHONNOUSERSITE=1 TRANSFORMERS_NO_TF=1 TRANSFORMERS_NO_JAX=1 USE_TF=0 USE_JAX=0
@@ -224,13 +224,13 @@ stages:
     deps:
     - path: data/exploitation/modelos_input/sample_tvt/test
       hash: md5
-      md5: 31916cc293715379cb1ee38fd575d021.dir
-      size: 21362916
+      md5: a610f95e258fbf67083c1b81ddfab885.dir
+      size: 21332718
       nfiles: 1
     - path: models/albert_sample_30pct
       hash: md5
-      md5: e45ca43f22c5129254eef74a3224e7e9.dir
-      size: 49784962
+      md5: 96e1d0b99ddf46e6be30beb287c0e2fe.dir
+      size: 49789593
       nfiles: 8
     - path: scripts/training/evaluate_albert.py
       hash: md5
@@ -239,8 +239,8 @@ stages:
     outs:
     - path: reports/albert_sample_30pct/eval
       hash: md5
-      md5: 5cabf02949b968e0bc5b258d21f30e5c.dir
-      size: 2835695
+      md5: 0e7bc87ac4aaa2141c4235fab6522874.dir
+      size: 2839259
       nfiles: 6
   train_albert:
     cmd: "python scripts/training/train_albert_from_parquets.py --train data/trusted/splits/train
@@ -316,7 +316,7 @@ stages:
     deps:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: a1409c92f8c045c37286352b55beb36c.dir
+      md5: 14aa2cd5dcb06e55d1caedefa145be1e.dir
       size: 495378510
       nfiles: 18
     - path: scripts/data_cleaning/sample_reviews.py
@@ -335,8 +335,8 @@ stages:
     outs:
     - path: data/trusted/reviews_sample_30pct
       hash: md5
-      md5: d432268afea9e8ae16bfbacd7a40d3f7.dir
-      size: 152182309
+      md5: dda7a837576a9bc27e38d4bc016e4ea6.dir
+      size: 152150914
       nfiles: 130
   eda_sample_30:
     cmd: "python scripts/EDA/eda_reviews.py --input data/trusted/reviews_sample_30pct
@@ -344,13 +344,13 @@ stages:
     deps:
     - path: data/trusted/reviews_sample_30pct
       hash: md5
-      md5: 1a6ae9d8a28fce4d2d822fe79938cfa9.dir
-      size: 143184372
-      nfiles: 50
+      md5: dda7a837576a9bc27e38d4bc016e4ea6.dir
+      size: 152150914
+      nfiles: 130
     - path: params.yaml
       hash: md5
-      md5: 3322653cf5ce2b5dc6494dde8d8a6dde
-      size: 2207
+      md5: fdf1c225423e3744f04cf8d3e1a8678f
+      size: 5836
     - path: scripts/EDA/eda_reviews.py
       hash: md5
       md5: 6235ecad747eb664623c25c539bb2a67
@@ -358,8 +358,8 @@ stages:
     outs:
     - path: reports/eda/sample_30
       hash: md5
-      md5: 50da7006b009894683e00f65a8c27d04.dir
-      size: 88256
+      md5: 7d1898633910ba4d4ee1fd3e15c7b247.dir
+      size: 85492
       nfiles: 10
   eda_compare_full_vs_30:
     cmd: "python scripts/EDA/eda_compare.py --a data/trusted/reviews_full --b data/trusted/reviews_sample_30pct
@@ -369,14 +369,14 @@ stages:
     deps:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 24df671359b0da525dcb63a50d0b8f53.dir
+      md5: 14aa2cd5dcb06e55d1caedefa145be1e.dir
       size: 495378510
       nfiles: 18
     - path: data/trusted/reviews_sample_30pct
       hash: md5
-      md5: 1a6ae9d8a28fce4d2d822fe79938cfa9.dir
-      size: 143184372
-      nfiles: 50
+      md5: dda7a837576a9bc27e38d4bc016e4ea6.dir
+      size: 152150914
+      nfiles: 130
     - path: scripts/EDA/eda_compare.py
       hash: md5
       md5: 47f357297a778055cea6698a7b44810b
@@ -397,8 +397,8 @@ stages:
     outs:
     - path: reports/eda/compare_full_vs_30
       hash: md5
-      md5: f40ebe979d4521fc05e861dda8933d39.dir
-      size: 60031
+      md5: 2b96952ef2eeed19b88a5eb9843d51d1.dir
+      size: 58921
       nfiles: 24
   infer_albert_forward:
     cmd: "PYTHONNOUSERSITE=1 TRANSFORMERS_NO_TF=1 TRANSFORMERS_NO_JAX=1 USE_TF=0 USE_JAX=0
@@ -435,28 +435,28 @@ stages:
     deps:
     - path: data/exploitation/modelos_input/sample_tvt/test
       hash: md5
-      md5: 31916cc293715379cb1ee38fd575d021.dir
-      size: 21362916
+      md5: bfa024e0523b5306f46976ba7d064f60.dir
+      size: 21251257
       nfiles: 1
     - path: data/exploitation/modelos_input/sample_tvt/train
       hash: md5
-      md5: 9ec6dd8cd7e694bd283e3145aaba615b.dir
-      size: 105904923
+      md5: 9209563c84f500f95462c3c20a78aaf0.dir
+      size: 106044050
       nfiles: 1
     - path: data/exploitation/modelos_input/sample_tvt/val
       hash: md5
-      md5: e664b7e6e2edb77b523f27de415196a3.dir
-      size: 14323218
+      md5: 3897382c33dacb582249c542f7c79759.dir
+      size: 14238818
       nfiles: 1
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 24df671359b0da525dcb63a50d0b8f53.dir
+      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
       size: 495378510
       nfiles: 18
     - path: data/trusted/reviews_sample_30pct
       hash: md5
-      md5: 1a6ae9d8a28fce4d2d822fe79938cfa9.dir
-      size: 143184372
+      md5: 3c913bd98909183982d0cc53110a1da0.dir
+      size: 143121002
       nfiles: 50
     - path: scripts/data_cleaning/make_rest_from_full.py
       hash: md5
@@ -465,8 +465,8 @@ stages:
     outs:
     - path: data/exploitation/modelos_input/rest_from_full
       hash: md5
-      md5: 3d191c7bbccd2f2fbb5de1335383c429.dir
-      size: 352996248
+      md5: 05e873d95fec452607af14e895877784.dir
+      size: 353112531
       nfiles: 20
   evaluate_albert_rest:
     cmd: "python scripts/training/evaluate_albert.py --model_dir models/albert_sample_30pct
@@ -527,14 +527,14 @@ stages:
     deps:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
+      md5: 14aa2cd5dcb06e55d1caedefa145be1e.dir
       size: 495378510
       nfiles: 18
     - path: data/trusted/sephora_clean/product_info
       hash: md5
-      md5: 3577e02353a591c15b8c577aa684ab64.dir
-      size: 2837914
-      nfiles: 10
+      md5: 4df2032a9266db9d0fe8e1a2cbda5752.dir
+      size: 2869951
+      nfiles: 12
     - path: scripts/data_cleaning/merge_reviews_product_info.py
       hash: md5
       md5: 8146cb418204fc6ac7c89d9e5ef61ca9
@@ -554,8 +554,8 @@ stages:
     outs:
     - path: data/trusted/reviews_product_info_clean_full
       hash: md5
-      md5: eaadce9f929da408872e4483cfab3c5a.dir
-      size: 796568875
+      md5: 40249586ccdac4a280e3a52a0f80cb42.dir
+      size: 796564328
       nfiles: 20
   gen_aspects_json:
     cmd: "python -c \"import os, json, yaml; d=yaml.safe_load(open('params.yaml'));
@@ -564,8 +564,8 @@ stages:
     deps:
     - path: params.yaml
       hash: md5
-      md5: 54f6dbb1dfbb57cbad1a7f096050bd1d
-      size: 5378
+      md5: fdf1c225423e3744f04cf8d3e1a8678f
+      size: 5836
     params:
       params.yaml:
         aspects_ontology_en:
@@ -687,8 +687,8 @@ stages:
       size: 1617
     - path: data/trusted/reviews_product_info_clean_full
       hash: md5
-      md5: eaadce9f929da408872e4483cfab3c5a.dir
-      size: 796568875
+      md5: 40249586ccdac4a280e3a52a0f80cb42.dir
+      size: 796564328
       nfiles: 20
     - path: scripts/absa/build_ate_trusted_from_ontology.py
       hash: md5
@@ -715,12 +715,12 @@ stages:
     outs:
     - path: data/trusted/ate/train.jsonl
       hash: md5
-      md5: 72845fb98ed2c103ebbe5fad193f2d48
-      size: 132839940
+      md5: 8308da9617a3434195f86d3de95c7e5e
+      size: 132415402
     - path: data/trusted/ate/valid.jsonl
       hash: md5
-      md5: 95deb7ccc458567f8a729cd58713922d
-      size: 14739976
+      md5: 4c9b77e153ed9651dfd6d569bf20ae71
+      size: 14774498
   train_ate_bio:
     cmd: "python scripts/absa/train_ate_bio.py --train_path data/trusted/ate/train.jsonl
       --valid_path data/trusted/ate/valid.jsonl --model_name roberta-base --output_dir
@@ -730,12 +730,12 @@ stages:
     deps:
     - path: data/trusted/ate/train.jsonl
       hash: md5
-      md5: 72845fb98ed2c103ebbe5fad193f2d48
-      size: 132839940
+      md5: 8308da9617a3434195f86d3de95c7e5e
+      size: 132415402
     - path: data/trusted/ate/valid.jsonl
       hash: md5
-      md5: 95deb7ccc458567f8a729cd58713922d
-      size: 14739976
+      md5: 4c9b77e153ed9651dfd6d569bf20ae71
+      size: 14774498
     - path: scripts/absa/train_ate_bio.py
       hash: md5
       md5: 2d388cccc6f6208197038b4dec501bbb
@@ -759,8 +759,8 @@ stages:
     outs:
     - path: models/ate_roberta_base
       hash: md5
-      md5: 217673fb8b498315510c12975c5f563c.dir
-      size: 1994821249
+      md5: d64bae8e030c409fed1f1a4dc63174b1.dir
+      size: 1994821241
       nfiles: 20
   infer_ate_spans:
     cmd: "python scripts/absa/infer_ate_spans.py --model_dir models/ate_roberta_base
@@ -770,13 +770,13 @@ stages:
     deps:
     - path: data/trusted/reviews_product_info_clean_full
       hash: md5
-      md5: eaadce9f929da408872e4483cfab3c5a.dir
-      size: 796568875
+      md5: 40249586ccdac4a280e3a52a0f80cb42.dir
+      size: 796564328
       nfiles: 20
     - path: models/ate_roberta_base
       hash: md5
-      md5: 217673fb8b498315510c12975c5f563c.dir
-      size: 1994821249
+      md5: d64bae8e030c409fed1f1a4dc63174b1.dir
+      size: 1994821241
       nfiles: 20
     - path: scripts/absa/infer_ate_spans.py
       hash: md5
@@ -797,8 +797,8 @@ stages:
     outs:
     - path: reports/absa/ate_spans.parquet
       hash: md5
-      md5: de6928cf97aec2601266f1c3f7cf6f39
-      size: 40279059
+      md5: 86b2781e945fd49d098974e099297df2
+      size: 40065363
   map_ate_spans:
     cmd: "python scripts/absa/map_spans_to_ontology.py --spans_parquet reports/absa/ate_spans.parquet
       --ontology_json configs/aspects_en.json --output_parquet reports/absa/ate_spans_mapped.parquet
@@ -810,8 +810,8 @@ stages:
       size: 1617
     - path: reports/absa/ate_spans.parquet
       hash: md5
-      md5: de6928cf97aec2601266f1c3f7cf6f39
-      size: 40279059
+      md5: 86b2781e945fd49d098974e099297df2
+      size: 40065363
     - path: scripts/absa/map_spans_to_ontology.py
       hash: md5
       md5: 2a66e66e776129c17888700ec3fec240
@@ -826,8 +826,8 @@ stages:
     outs:
     - path: reports/absa/ate_spans_mapped.parquet
       hash: md5
-      md5: 6c9a99ed713accecd123221adaf1cb7e
-      size: 35793367
+      md5: 8ed9df311e42967ad65b72aa98f581b2
+      size: 35677072
   absa_build_all:
     cmd: "python scripts/absa/build_absa_dataset.py --spans_parquet reports/absa/ate_spans.parquet
       --map_parquet   reports/absa/ate_spans_mapped.parquet --sentiment_parquet reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
@@ -836,20 +836,20 @@ stages:
     deps:
     - path: params.yaml
       hash: md5
-      md5: 8465281c1d6fce48d43dd12b939f12c9
-      size: 5766
+      md5: fdf1c225423e3744f04cf8d3e1a8678f
+      size: 5836
     - path: reports/absa/ate_spans.parquet
       hash: md5
-      md5: de6928cf97aec2601266f1c3f7cf6f39
-      size: 40279059
+      md5: 86b2781e945fd49d098974e099297df2
+      size: 40065363
     - path: reports/absa/ate_spans_mapped.parquet
       hash: md5
-      md5: 6c9a99ed713accecd123221adaf1cb7e
-      size: 35793367
+      md5: 8ed9df311e42967ad65b72aa98f581b2
+      size: 35677072
     - path: reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
       hash: md5
-      md5: 16152215958df9193ea75fcc01d43017
-      size: 57337966
+      md5: 6d82ae455cfaa83486a0bb573644d45c
+      size: 57379285
     - path: scripts/absa/build_absa_dataset.py
       hash: md5
       md5: 37777cd65e975fafb0adb50ead1c0e9e
@@ -857,8 +857,8 @@ stages:
     outs:
     - path: reports/absa/final_all
       hash: md5
-      md5: 9c2a5bdf2610b5a8f05dff941a6c95ee.dir
-      size: 33218869
+      md5: e235e6c87cd35119bb3679a156aca914.dir
+      size: 33228998
       nfiles: 77
   absa_eval_thr90:
     cmd: "python scripts/absa/metrics_from_predictions.py --predictions_parquet reports/albert_sample_30pct/eval/predictions.parquet
@@ -940,7 +940,7 @@ stages:
     deps:
     - path: data/trusted/reviews_full
       hash: md5
-      md5: 4485207d96ba5a6d739a8b5570c6df6d.dir
+      md5: 14aa2cd5dcb06e55d1caedefa145be1e.dir
       size: 495378510
       nfiles: 18
     - path: scripts/infer/convert_delta_to_parquet_snapshot.py
@@ -950,7 +950,7 @@ stages:
     outs:
     - path: data/trusted/reviews_full_snapshot.parquet
       hash: md5
-      md5: 015c03bc808ac43ac453e553c632bec7.dir
+      md5: 44dd11b02dc93efec0fba31d50d3744a.dir
       size: 495361508
       nfiles: 20
   infer_sentiment_full_pandas:
@@ -962,18 +962,18 @@ stages:
     deps:
     - path: data/trusted/reviews_full_snapshot.parquet
       hash: md5
-      md5: 015c03bc808ac43ac453e553c632bec7.dir
+      md5: 44dd11b02dc93efec0fba31d50d3744a.dir
       size: 495361508
       nfiles: 20
     - path: models/albert_sample_30pct
       hash: md5
-      md5: 923ed8e16d5c6e248094aff1bf38c3cf.dir
-      size: 49784962
+      md5: 96e1d0b99ddf46e6be30beb287c0e2fe.dir
+      size: 49789593
       nfiles: 8
     - path: params.yaml
       hash: md5
-      md5: 8465281c1d6fce48d43dd12b939f12c9
-      size: 5766
+      md5: fdf1c225423e3744f04cf8d3e1a8678f
+      size: 5836
     - path: scripts/infer/infer_sentiment_full_pandas.py
       hash: md5
       md5: 4d6ce84c3b555a0d7050301b07641dd8
@@ -987,5 +987,161 @@ stages:
     outs:
     - path: reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
       hash: md5
-      md5: 16152215958df9193ea75fcc01d43017
-      size: 57337966
+      md5: 6d82ae455cfaa83486a0bb573644d45c
+      size: 57379285
+  train_rf_sample:
+    cmd: "MLFLOW_RUN_NAME=rf_sample_30pct python scripts/training/train_random_forest.py
+      --train data/exploitation/modelos_input/sample_tvt/train --val   data/exploitation/modelos_input/sample_tvt/val
+      --model-out models/sentiment_rf_sample --params params.yaml\n"
+    deps:
+    - path: data/exploitation/modelos_input/sample_tvt/train
+      hash: md5
+      md5: 70f82340d294d46c0c4e27d7b72152db.dir
+      size: 106162265
+      nfiles: 1
+    - path: data/exploitation/modelos_input/sample_tvt/val
+      hash: md5
+      md5: 30628d4ac7af0e8b6d608315f0156f6b.dir
+      size: 14307311
+      nfiles: 1
+    - path: params.yaml
+      hash: md5
+      md5: fdf1c225423e3744f04cf8d3e1a8678f
+      size: 5836
+    - path: scripts/training/train_random_forest.py
+      hash: md5
+      md5: 514f31ec650499ee2998b0ec845527df
+      size: 9625
+    outs:
+    - path: models/sentiment_rf_sample
+      hash: md5
+      md5: b6144fb663d6fe9ad9b2db33d3781141.dir
+      size: 1485067011
+      nfiles: 3
+    - path: reports/sentiment_rf
+      hash: md5
+      md5: d6bbe2ae590f3ad0acca74d86b474294.dir
+      size: 17375
+      nfiles: 1
+  evaluate_rf_sample:
+    cmd: "python scripts/training/infer_random_forest.py --model-dir models/sentiment_rf_sample
+      --input data/exploitation/modelos_input/sample_tvt/test --output-dir reports/sentiment_rf_sample/eval
+      --text-col review_text --id-col review_id --use-extra 1 && python scripts/evaluation/metrics_overall.py
+      --preds reports/sentiment_rf_sample/eval/test_predictions.parquet --out_dir
+      reports/sentiment_rf_sample/eval\n"
+    deps:
+    - path: data/exploitation/modelos_input/sample_tvt/test
+      hash: md5
+      md5: a610f95e258fbf67083c1b81ddfab885.dir
+      size: 21332718
+      nfiles: 1
+    - path: models/sentiment_rf_sample
+      hash: md5
+      md5: b6144fb663d6fe9ad9b2db33d3781141.dir
+      size: 1485067011
+      nfiles: 3
+    - path: scripts/evaluation/metrics_overall.py
+      hash: md5
+      md5: 5f870271995dc8e4e110e56c3fe57a02
+      size: 2244
+      isexec: true
+    - path: scripts/training/infer_random_forest.py
+      hash: md5
+      md5: aaf54ed2f382cf9247b1742ebb4c4ad1
+      size: 8716
+    outs:
+    - path: reports/sentiment_rf_sample/eval
+      hash: md5
+      md5: f9b0d81188a695e0ca55a58084ad830e.dir
+      size: 2023090
+      nfiles: 4
+  infer_rf_all:
+    cmd: "python scripts/training/infer_random_forest.py --model-dir models/sentiment_rf_sample
+      --input data/trusted/reviews_full --output-dir reports/sentiment_rf_sample/infer
+      --text-col review_text --id-col review_id --use-extra 1 && python scripts/evaluation/metrics_overall.py
+      --preds reports/sentiment_rf_sample/infer/test_predictions.parquet --out_dir
+      reports/sentiment_rf_sample/infer_eval_full\n"
+    deps:
+    - path: data/trusted/reviews_full
+      hash: md5
+      md5: 14aa2cd5dcb06e55d1caedefa145be1e.dir
+      size: 495378510
+      nfiles: 18
+    - path: models/sentiment_rf_sample
+      hash: md5
+      md5: 3a203eb3349d6e8ffed950f232b2d7a2.dir
+      size: 1482049207
+      nfiles: 3
+    - path: scripts/evaluation/metrics_overall.py
+      hash: md5
+      md5: 5f870271995dc8e4e110e56c3fe57a02
+      size: 2244
+      isexec: true
+    - path: scripts/training/infer_random_forest.py
+      hash: md5
+      md5: aaf54ed2f382cf9247b1742ebb4c4ad1
+      size: 8716
+    outs:
+    - path: reports/sentiment_rf_sample/infer
+      hash: md5
+      md5: fa38debcbf0f4d8fa5bb42d9ddd69f55.dir
+      size: 42770315
+      nfiles: 1
+    - path: reports/sentiment_rf_sample/infer_eval_full
+      hash: md5
+      md5: 559085834cd433896cc671f4d2e970c1.dir
+      size: 58966
+      nfiles: 3
+  infer_ulta_top50_albert:
+    cmd: "python scripts/infer/infer_top_upvoted_ulta.py --backend albert --input_delta
+      'data/trusted/ulta_clean/Ulta Skincare Reviews' --model_dir models/albert_sample_30pct
+      --top_n 50 --max_len 192 --batch_size 64 --output_parquet reports/albert_sample_30pct/ulta_top50/predictions.parquet
+      --coalesce 1 --demote_neutral 1 --min_neutral_prob 0.90\n"
+    deps:
+    - path: data/trusted/ulta_clean/Ulta Skincare Reviews
+      hash: md5
+      md5: beebb92e4be0fdb3bc2b5731308aa47c.dir
+      size: 3627645
+      nfiles: 24
+    - path: models/albert_sample_30pct
+      hash: md5
+      md5: 96e1d0b99ddf46e6be30beb287c0e2fe.dir
+      size: 49789593
+      nfiles: 8
+    - path: scripts/infer/infer_top_upvoted_ulta.py
+      hash: md5
+      md5: 38047141fadb6c2443cf255888a88e75
+      size: 13255
+    outs:
+    - path: reports/albert_sample_30pct/ulta_top50
+      hash: md5
+      md5: f8f744d729fc9aee4ccd0850755dd913.dir
+      size: 51979
+      nfiles: 12
+  infer_ulta_top50_rf:
+    cmd: "python scripts/infer/infer_top_upvoted_ulta.py --backend rf --input_delta
+      'data/trusted/ulta_clean/Ulta Skincare Reviews' --model_dir models/sentiment_rf_sample
+      --top_n 50 --output_parquet reports/sentiment_rf_sample/ulta_top50/predictions.parquet
+      --coalesce 1 --demote_neutral 1 --min_neutral_prob 0.90 --use_title 1 --use_extra
+      1\n"
+    deps:
+    - path: data/trusted/ulta_clean/Ulta Skincare Reviews
+      hash: md5
+      md5: beebb92e4be0fdb3bc2b5731308aa47c.dir
+      size: 3627645
+      nfiles: 24
+    - path: models/sentiment_rf_sample
+      hash: md5
+      md5: b6144fb663d6fe9ad9b2db33d3781141.dir
+      size: 1485067011
+      nfiles: 3
+    - path: scripts/infer/infer_top_upvoted_ulta.py
+      hash: md5
+      md5: 38047141fadb6c2443cf255888a88e75
+      size: 13255
+    outs:
+    - path: reports/sentiment_rf_sample/ulta_top50
+      hash: md5
+      md5: 6d68f438f4c1e25b62c53b4573d334e6.dir
+      size: 49548
+      nfiles: 12

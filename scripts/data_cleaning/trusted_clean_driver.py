@@ -30,3 +30,4 @@ for dataset, folder in datasets.items():
         else:
             print(f"Error procesando {tabla}:\n{result.stderr}")
 
+
