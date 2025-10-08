@@ -1,0 +1,71 @@
+scripts
+├── scripts/EDA
+│   ├── scripts/EDA/eda_compare.py
+│   └── scripts/EDA/eda_reviews.py
+├── scripts/absa
+│   ├── scripts/absa/absa_insights_altair.py
+│   ├── scripts/absa/build_absa_dataset.py
+│   ├── scripts/absa/build_ate_trusted_from_ontology.py
+│   ├── scripts/absa/build_preview_fused.py
+│   ├── scripts/absa/build_product_cards.py
+│   ├── scripts/absa/compute_product_rating_stats.py
+│   ├── scripts/absa/debug_inspect_radar.py
+│   ├── scripts/absa/download_product_thumbs.py
+│   ├── scripts/absa/export_product_info_snapshot.py
+│   ├── scripts/absa/fetch_product_images.py
+│   ├── scripts/absa/infer_ate_spans.py
+│   ├── scripts/absa/inject_recalculated_ratings.py
+│   ├── scripts/absa/make_absa_report.py
+│   ├── scripts/absa/make_product_cards_html.py
+│   ├── scripts/absa/map_spans_to_ontology.py
+│   ├── scripts/absa/top10_loves_duckdb.py
+│   └── scripts/absa/train_ate_bio.py
+├── scripts/data_cleaning
+│   ├── scripts/data_cleaning/conversion_a_delta.py
+│   ├── scripts/data_cleaning/make_rest_from_full.py
+│   ├── scripts/data_cleaning/merge_reviews_product_info.py
+│   ├── scripts/data_cleaning/merge_trusted_reviews.py
+│   ├── scripts/data_cleaning/sample_reviews.py
+│   ├── scripts/data_cleaning/trusted_clean_driver.py
+│   ├── scripts/data_cleaning/trusted_clean_single.py
+│   └── scripts/data_cleaning/utils_text.py
+├── scripts/data_ingestion
+│   └── scripts/data_ingestion/descarga_kaggle_reviews.py
+├── scripts/data_integration
+├── scripts/evaluation
+│   ├── scripts/evaluation/check_rf_inputs.py
+│   ├── scripts/evaluation/merge_parquets.py
+│   ├── scripts/evaluation/metrics_overall.py
+│   └── scripts/evaluation/metrics_partitions.py
+├── scripts/infer
+│   ├── scripts/infer/convert_delta_to_parquet_snapshot.py
+│   ├── scripts/infer/infer_sentiment_full_pandas.py
+│   └── scripts/infer/infer_top_upvoted_ulta.py
+├── scripts/setup
+│   ├── scripts/setup/dvc_run.sh
+│   ├── scripts/setup/setup_dvc_remote.sh
+│   └── scripts/setup/verificar_dvc.sh
+├── scripts/training
+│   ├── scripts/training/__pycache__
+│   │   └── scripts/training/__pycache__/train_random_forest.cpython-310.pyc
+│   ├── scripts/training/evaluate_albert.py
+│   ├── scripts/training/infer_random_forest.py
+│   ├── scripts/training/prepare_test_parquet.py
+│   ├── scripts/training/split_train_val_test.py
+│   ├── scripts/training/train_albert_from_parquets.py
+│   └── scripts/training/train_random_forest.py
+└── scripts/viz
+    ├── scripts/viz/aspect_opportunity.py
+    ├── scripts/viz/cards_index_with_filters.py
+    ├── scripts/viz/compute_top_brand_per_aspect_from_preview.py
+    ├── scripts/viz/deep_dive_reviews.py
+    ├── scripts/viz/ingredients_differential.py
+    ├── scripts/viz/link_top10_cards.py
+    ├── scripts/viz/make_priority_tables_simple.py
+    ├── scripts/viz/viz_box_from_preview.py
+    ├── scripts/viz/viz_market_brand_bubbles.py
+    ├── scripts/viz/viz_market_brand_panel.py
+    ├── scripts/viz/viz_ridge_from_preview.py
+    └── scripts/viz/viz_violin_secondary_rating.py
+
+11 directories, 57 files

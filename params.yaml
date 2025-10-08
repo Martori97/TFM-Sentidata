@@ -1,11 +1,10 @@
 sampling:
-  frac: 0.30
+  frac: 0.3
   by: sentiment_category
   seed: 42
   format: delta
   coalesce: 64
-  balance: true   # muestreo balanceado por clase
-
+  balance: true
 eda_compare_full_vs_30:
   a: data/trusted/reviews_full
   b: data/trusted/reviews_sample_30pct
@@ -17,19 +16,21 @@ eda_compare_full_vs_30:
   max_len: 128
   clip_tokens: true
   silence_tokenizer_warnings: true
-
 model:
   albert:
     num_labels: 3
-    labels: ["negative", "neutral", "positive"]   # ORDEN CANÓNICO
+    labels:
+    - negative
+    - neutral
+    - positive
     label2id:
       negative: 0
       neutral: 1
       positive: 2
     id2label:
-      "0": "negative"
-      "1": "neutral"
-      "2": "positive"
+      '0': negative
+      '1': neutral
+      '2': positive
     clean_output: true
     model_name: albert-base-v2
     max_len: 192
@@ -40,7 +41,7 @@ model:
     lr: 2e-5
     weight_decay: 0.05
     seed: 42
-    optim: adamw_torch_fused          # en HF>=4.56 usar adamw_torch si hace falta
+    optim: adamw_torch_fused
     prefer_cuda: 1
     bf16: true
     fp16: false
@@ -54,7 +55,7 @@ model:
     patience: 2
     load_best_model_at_end: true
     text_col: review_text_clean
-    label_col: label3                 # si no existe, se deriva desde rating
+    label_col: label3
     rating_col: rating
     dataloader_num_workers: 8
     dataloader_prefetch_factor: 4
@@ -64,26 +65,29 @@ model:
 training:
   class_weights:
     mode: manual
-    manual: [1.8, 1.35, 0.6]
-
+    manual:
+    - 1.8
+    - 1.35
+    - 0.6
 mlflow:
   enable: true
   experiment: Sentidata
-  tracking_uri: "file:./mlruns"
+  tracking_uri: file:./mlruns
   run_name: albert_sample_30pct
   tags:
     stage: train
-
 rf:
   text_col: review_text
-  label_col: null            # si no hay label explícita, se deriva de rating
+  label_col: null
   rating_col: rating
   preproc:
     use_lemma: true
     language: en
   tfidf:
     max_features: 50000
-    ngram_range: [1, 2]
+    ngram_range:
+    - 1
+    - 2
     min_df: 3
     max_df: 0.95
     stop_words: english
@@ -92,31 +96,22 @@ rf:
     add_contrast_markers: true
     add_len: true
   model_params:
-    n_estimators: 100 #inicialmente 400
+    n_estimators: 100
     max_depth: null
     class_weight: balanced
     n_jobs: -1
 seed: 42
-
-# =========================
-# Paths (merge trusted)
-# =========================
 paths:
   reviews_full: data/trusted/reviews_full
   product_info: data/trusted/sephora_clean/product_info
   merged_out: data/trusted/reviews_product_info_clean_full
-
 merge_reviews_product_info:
-  input_format: auto        # auto | delta | parquet
-  output_format: delta      # delta | parquet
-  repartition: 0            # evitar shuffle
-  coalesce: 64              # compacta sin shuffle (ajusta si memoria)
-  broadcast_product_info: "true"
+  input_format: auto
+  output_format: delta
+  repartition: 0
+  coalesce: 64
+  broadcast_product_info: 'true'
   product_prefix: pinfo_
-
-# =========================
-# ATE (trusted)
-# =========================
 ate_trusted:
   input_path: data/trusted/reviews_product_info_clean_full
   input_format: delta
@@ -126,12 +121,11 @@ ate_trusted:
   output_dir: data/trusted/ate
   train_filename: train.jsonl
   valid_filename: valid.jsonl
-  sample_fraction: 0.2     # 0–1: muestreo de reviews
-  max_reviews: 300000      # 0 = sin límite
+  sample_fraction: 0.2
+  max_reviews: 300000
   train_valid_split: 0.9
   keep_neg_ratio: 0.2
   seed: 13
-
 ate_train:
   model_name: roberta-base
   output_dir: models/ate_roberta_base
@@ -140,15 +134,12 @@ ate_train:
   batch_size: 32
   grad_accum: 2
   max_length: 192
-  # precisión y rendimiento
-  fp16: false          
-  bf16: true         
+  fp16: false
+  bf16: true
   grad_checkpoint: false
   dataloader_workers: 8
-  # datos
   train_path: data/trusted/ate/train.jsonl
   valid_path: data/trusted/ate/valid.jsonl
-
 ate_infer:
   model_dir: models/ate_roberta_base
   input_path: data/trusted/reviews_product_info_clean_full
@@ -159,30 +150,112 @@ ate_infer:
   max_length: 192
   batch_size: 128
   flush_rows: 25000
-
 ate_map:
   spans_parquet: reports/absa/ate_spans.parquet
   ontology_json: configs/aspects_en.json
   output_parquet: reports/absa/ate_spans_mapped.parquet
   threshold: 0.45
-
-# =========================
-# Ontology (English)
-# =========================
 aspects_ontology_en:
-  fragrance: [fragrance, scent, smell, aroma, perfume, notes, odor, fragrant]
-  longevity: [longevity, long-lasting, lasting, wear time, duration, staying power]
-  sillage: [sillage, projection, trail, leaves a trail]
-  price: [price, price point, cost, value, worth, expensive, cheap, overpriced]
-  packaging: [packaging, bottle, cap, pump, box, container, design]
-  texture: [texture, consistency, feel, thick, thin, creamy, watery, sticky, greasy, lightweight, silky]
-  hydration: [hydration, moisturizing, hydrating, moisture, drying, dehydrating]
-  application: [application, apply, applies, spreads, absorbs, glides, blendability, easy to use]
-  finish: [finish, matte, dewy, glowy, glossy, sheen, shine]
-  irritation: [irritation, irritates, sting, burning, redness, itch, breakout, allergic, sensitivity]
-  ingredients: [ingredients, alcohol, parabens, sulfates, silicones, fragrance-free, clean, formula]
-  effectiveness: [effectiveness, works, results, performance, improvement, does nothing]
-
+  fragrance:
+  - fragrance
+  - scent
+  - smell
+  - aroma
+  - perfume
+  - notes
+  - odor
+  - fragrant
+  longevity:
+  - longevity
+  - long-lasting
+  - lasting
+  - wear time
+  - duration
+  - staying power
+  sillage:
+  - sillage
+  - projection
+  - trail
+  - leaves a trail
+  price:
+  - price
+  - price point
+  - cost
+  - value
+  - worth
+  - expensive
+  - cheap
+  - overpriced
+  packaging:
+  - packaging
+  - bottle
+  - cap
+  - pump
+  - box
+  - container
+  - design
+  texture:
+  - texture
+  - consistency
+  - feel
+  - thick
+  - thin
+  - creamy
+  - watery
+  - sticky
+  - greasy
+  - lightweight
+  - silky
+  hydration:
+  - hydration
+  - moisturizing
+  - hydrating
+  - moisture
+  - drying
+  - dehydrating
+  application:
+  - application
+  - apply
+  - applies
+  - spreads
+  - absorbs
+  - glides
+  - blendability
+  - easy to use
+  finish:
+  - finish
+  - matte
+  - dewy
+  - glowy
+  - glossy
+  - sheen
+  - shine
+  irritation:
+  - irritation
+  - irritates
+  - sting
+  - burning
+  - redness
+  - itch
+  - breakout
+  - allergic
+  - sensitivity
+  ingredients:
+  - ingredients
+  - alcohol
+  - parabens
+  - sulfates
+  - silicones
+  - fragrance-free
+  - clean
+  - formula
+  effectiveness:
+  - effectiveness
+  - works
+  - results
+  - performance
+  - improvement
+  - does nothing
 absa:
   id_col: review_id
   span_text_col: aspect_span
@@ -194,7 +267,6 @@ absa:
   pos_threshold: 4.0
   repartition: null
   output_dir: reports/absa/final_all
-
 infer_sentiment_full_pandas:
   model_dir: models/albert_sample_30pct
   input_path: data/trusted/reviews_full_snapshot.parquet
@@ -204,3 +276,309 @@ infer_sentiment_full_pandas:
   text_col: review_text_clean
   batch_size: 64
   max_length: 192
+absa_paths:
+  delta_product_reviews: data/trusted/reviews_product_info_clean_full
+  product_snapshot: data/exploitation/product_info_snapshot.parquet
+  spans: reports/absa/ate_spans.parquet
+  mapped: reports/absa/ate_spans_mapped.parquet
+  sentiment: reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+absa_report:
+  cards: reports/absa/cards/product_cards.jsonl
+  insights: reports/absa/insights/charts
+  loves_global: reports/absa/loves_top10/global_top10.csv
+  loves_percat: reports/absa/loves_top10/per_category_top10.csv
+  outdir: reports/absa/final_report
+cards:
+  axes_by_category:
+    Perfumes:
+    - fragrance
+    - longevity
+    - sillage
+    - packaging
+    - price
+    - irritation
+    Fragrances:
+    - fragrance
+    - longevity
+    - sillage
+    - packaging
+    - price
+    - irritation
+    Skincare:
+    - texture
+    - hydration
+    - application
+    - ingredients
+    - effectiveness
+    - price
+    Makeup:
+    - finish
+    - texture
+    - application
+    - packaging
+    - ingredients
+    - price
+    Haircare:
+    - texture
+    - application
+    - hydration
+    - ingredients
+    - effectiveness
+    - price
+    Hair:
+    - texture
+    - application
+    - hydration
+    - ingredients
+    - effectiveness
+    - price
+    Shampoo:
+    - texture
+    - application
+    - hydration
+    - ingredients
+    - effectiveness
+    - price
+    Conditioner:
+    - texture
+    - application
+    - hydration
+    - ingredients
+    - effectiveness
+    - price
+    Styling:
+    - texture
+    - application
+    - ingredients
+    - effectiveness
+    - price
+    - fragrance
+  axes_global:
+  - fragrance
+  - longevity
+  - texture
+  - packaging
+  - price
+  - effectiveness
+  min_reviews_per_product: 30
+  top_k_terms: 3
+  normalize: global
+insights:
+  save_csv: true
+images:
+  enable: true
+  user_agent: Mozilla/5.0
+  timeout_sec: 10
+  sleep_sec: 1.5
+  max_per_run: 10000
+  out_csv: reports/absa/images/product_images.csv
+  out_cards_jsonl: reports/absa/cards/product_cards_with_images.jsonl
+  blacklist_domains:
+  - beautybrands.com
+  - benefitcosmetics.com
+  - bloomingdales.com
+  - co.nz
+  - co.uk
+  - com.au
+  - com.kw
+  - com.mx
+  - com.my
+  - com.tr
+  - dermwarehouse.com
+  - dior.com
+  - edcskincare.com
+  - editorialist.com
+  - feelunique.com
+  - fentyvibes.com
+  - fresh.com
+  - gucci.com
+  - hsncdn.com
+  - iciparisxl.be
+  - iciparisxl.nl
+  - influenster.com
+  - laladaisy.com
+  - perfumebox.gr
+  - perfumeemporium.com
+  - pricerunner.dk
+  - qvc.com
+  - s5a.com
+  - scene7.com
+  - sephora.ae
+  - sephora.bh
+  - sephora.com
+  - sephora.de
+  - sephora.dk
+  - sephora.es
+  - sephora.eu
+  - sephora.fr
+  - sephora.gr
+  - sephora.me
+  - sephora.pl
+  - sephora.pt
+  - sephora.qa
+  - tejar.com
+  - tillys.com
+  - vonmaur.com
+  - wisteriajaneofficial.com
+  whitelist_domains:
+  - m.media-amazon.com
+  - i.ebayimg.com
+  - i5.walmartimages.com
+  - cdn.shopify.com
+  - images.ctfassets.net
+  - static.thcdn.com
+  - images.asos-media.com
+  - images-static.nicecdn.com
+thumbs:
+  input_jsonl: reports/absa/cards/product_cards_with_images.jsonl
+  thumbs_dir: data/cache/product_images/thumbs
+  out_csv: reports/absa/images/product_thumbs.csv
+  size: 256
+  quality: 80
+  sleep_sec: 0.5
+  timeout: 12
+
+build_preview_fused:
+  reviews_delta: data/trusted/reviews_product_info_clean_full
+  ate_mapped_parquet: reports/absa/ate_spans_mapped.parquet
+  ate_spans_parquet: reports/absa/ate_spans.parquet
+  sentiment_parquet: reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+  output_parquet: reports/absa/final_all/preview_fused.parquet
+  coalesce: 1
+  limit_show: 10
+
+aspect_opportunity:
+  preview_parquet: reports/absa/final_all/preview_fused.parquet
+  products_parquet: data/exploitation/product_info_snapshot.parquet
+  reviews_delta: data/trusted/reviews_product_info_clean_full
+  out_dir: reports/viz
+  bubble_html: reports/viz/aspect_opportunity_bubble.html
+  heatmap_html: reports/viz/negatives_excess_heatmap.html
+  table_csv: reports/viz/negatives_table.csv
+  category_filter: __ALL__
+  min_reviews_cell: 50
+  min_volume_w: 10.0
+  top_aspects_bubble: 6
+  top_brands_heatmap: 30
+  weight_cap_pct: 95.0
+  pixels_per_brand: 18
+  min_panel_width: 1000
+
+priority_tables_simple:
+  input_csv: reports/viz/negatives_table.csv
+  out_dir: reports/viz
+  thr_excess_high: 0.03
+  thr_compl_high: 0.12
+  thr_compl_low: 0.08
+  thr_quality_high: 0.65
+  min_reviews: 50
+  min_volume_w: 10.0
+  top_k_overall: 100
+  top_k_per_cat: 30
+
+priority_tables:
+  input_csv: reports/viz/negatives_table.csv
+  out_dir: reports/viz
+  k_conf: 200
+  bayes_strength: 0        # 0 = off; p.ej., 150 para prior por categoría
+  min_reviews: 50
+  min_volume_w: 10.0
+  top_k_overall: 100
+  top_k_per_cat: 30
+
+deep_dive_reviews:
+  preview_parquet: reports/absa/final_all/preview_fused.parquet
+  top_risks_csv: reports/viz/simple_top_risks_overall.csv
+  out_dir: reports/deep_dive
+  top_cells: 20
+  neg_label: 0
+  sample_reviews_per_cell: 200
+
+ingredients_differential:
+  products_parquet: data/exploitation/product_info_snapshot.parquet
+  top_risks_csv: reports/viz/simple_top_risks_overall.csv
+  out_dir: reports/ingredients_diff
+  top_cells: 20
+  top_terms: 40
+
+viz_box_from_preview:
+  input_parquet: reports/absa/final_all/preview_fused.parquet
+  output_html: reports/viz/box_by_aspect_brand.html
+  metric: rating             # rating | pred3 | pos_minus_neg
+  category_filter: __ALL__
+  min_n_per_cell: 50
+  max_aspects: 8
+  max_rows: 1000000
+  pixels_per_brand: 18
+  panel_height: 300
+
+viz_ridge_from_preview:
+  input_parquet: reports/absa/final_all/preview_fused.parquet
+  output_html: reports/viz/ridge_by_aspect_brand.html
+  metric: pos_minus_neg      # rating | pos_minus_neg
+  category_filter: __ALL__
+  min_n_per_cell: 50
+  max_aspects: 8
+  max_brands_per_aspect: 25
+  extent_lo: 0.0
+  extent_hi: 1.0
+viz_violin_secondary_rating:
+  input_parquet: reports/absa/final_all/preview_fused.parquet
+  output_html: reports/viz/violin_secondary_rating.html
+  metric: rating
+  category_filter: All
+  min_reviews_per_cat: 200
+  max_categories: 40
+  per_cat_width: 120
+  row_height: 300
+  bandwidth: auto
+  bins: 200
+  dedup_reviews: true   # <-- 1 review = 1 voto
+viz_market_brand_panel:
+  input_parquet: reports/absa/final_all/preview_fused.parquet
+  products_parquet: data/exploitation/product_info_snapshot.parquet
+  reviews_delta: data/trusted/reviews_product_info_clean_full
+  
+
+  output_html_sticky: reports/viz/market_brand_panel_sticky.html
+  metric: rating
+  dedup_reviews: true
+  min_reviews_per_cat: 200
+  max_categories: 40
+  bins: 300
+  bandwidth: auto
+  jitter_sigma: 0.12
+  market_width: 320
+  market_height: 340
+  brand_width: 140
+  brand_height: 120
+  brand_cols: 6
+  top_brands_per_cat: 60
+
+viz_market_brand_bubbles:
+  input_parquet: reports/absa/final_all/preview_fused.parquet
+  products_parquet: data/exploitation/product_info_snapshot.parquet
+  reviews_delta: data/trusted/reviews_product_info_clean_full
+  secondary_map_parquet: ""   # opcional; dejar "" si no se usa
+  output_html: reports/viz/market_brand_bubbles.html
+  dedup_reviews: true
+  min_reviews_per_cat: 200
+  max_categories: 40
+  weight_cap_pct: 95.0
+  top_products: 200
+
+loves_top10:
+  per_category_csv: reports/loves_top10/per_category_top10.csv
+  global_csv: reports/loves_top10/global_top10.csv
+  products_parquet: data/exploitation/product_info_snapshot.parquet
+  cards_dir: reports/absa/cards
+  thumbs_dir: data/cache/product_images
+  out_html: reports/absa/cards/top10_index.html
+  card_pattern: "{product_id}.html"
+
+cards_index:
+  products_parquet: data/exploitation/product_info_snapshot.parquet
+  cards_dir: reports/absa/cards
+  thumbs_dir: data/cache/product_images
+  card_pattern: "{product_id}.html"
+  recalc_out_html_wfilters: reports/absa/cards/product_cards_recalc_wfilters.html

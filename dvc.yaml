@@ -403,3 +403,379 @@ stages:
       - 'data/trusted/ulta_clean/Ulta Skincare Reviews'
     outs:
       - reports/sentiment_rf_sample/ulta_top50
+
+  export_snapshot:
+    cmd: >
+      python scripts/absa/export_product_info_snapshot.py
+      --params params.yaml
+    deps:
+      - scripts/absa/export_product_info_snapshot.py
+      - data/trusted/reviews_product_info_clean_full
+      - params.yaml
+    outs:
+      - data/exploitation/product_info_snapshot.parquet
+
+  build_product_cards:
+    cmd: >
+      python scripts/absa/build_product_cards.py --params params.yaml
+    deps:
+      - scripts/absa/build_product_cards.py
+      - reports/absa/ate_spans.parquet
+      - reports/absa/ate_spans_mapped.parquet
+      - reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+      - data/exploitation/product_info_snapshot.parquet
+      - params.yaml
+    outs:
+      - reports/absa/cards/product_cards.jsonl
+
+  absa_insights_altair:
+    cmd: >
+      python scripts/absa/absa_insights_altair.py --params params.yaml
+    deps:
+      - scripts/absa/absa_insights_altair.py
+      - reports/absa/ate_spans.parquet
+      - reports/absa/ate_spans_mapped.parquet
+      - reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+      - data/exploitation/product_info_snapshot.parquet
+      - params.yaml
+    outs:
+      - reports/absa/insights/charts
+
+  loves_top10_duckdb:
+    cmd: >
+      python scripts/absa/top10_loves_duckdb.py --params params.yaml
+    deps:
+      - scripts/absa/top10_loves_duckdb.py
+      - data/trusted/reviews_product_info_clean_full
+      - params.yaml
+    outs:
+      - reports/absa/loves_top10/global_top10.csv
+      - reports/absa/loves_top10/per_category_top10.csv
+
+  fetch_product_images:
+    cmd: python scripts/absa/fetch_product_images.py --params params.yaml
+    deps:
+      - scripts/absa/fetch_product_images.py
+      - reports/absa/cards/product_cards.jsonl
+      - params.yaml
+    outs:
+      - reports/absa/images/product_images.csv
+      - reports/absa/cards/product_cards_with_images.jsonl
+
+  download_product_thumbs:
+    cmd: python scripts/absa/download_product_thumbs.py
+    deps:
+      - scripts/absa/download_product_thumbs.py
+      - reports/absa/cards/product_cards_with_images.jsonl
+    outs:
+      - data/cache/product_images/thumbs
+      - reports/absa/images/product_thumbs.csv
+  
+  
+  compute_product_rating_stats:
+    cmd: >
+      python scripts/absa/compute_product_rating_stats.py
+      --input_delta data/trusted/reviews_product_info_clean_full
+      --id-col product_id
+      --rating-col rating
+      --text-col review_text_clean
+      --out reports/absa/product_rating_stats.parquet
+    deps:
+      - scripts/absa/compute_product_rating_stats.py
+      - data/trusted/reviews_product_info_clean_full
+    outs:
+      - reports/absa/product_rating_stats.parquet
+
+  inject_recalculated_ratings:
+    cmd: >
+      python scripts/absa/inject_recalculated_ratings.py
+      --cards-in reports/absa/cards/product_cards_with_images.jsonl
+      --stats-parquet reports/absa/product_rating_stats.parquet
+      --cards-out reports/absa/cards/product_cards_with_images.recalc.jsonl
+    deps:
+      - scripts/absa/inject_recalculated_ratings.py
+      - reports/absa/cards/product_cards_with_images.jsonl
+      - reports/absa/product_rating_stats.parquet
+    outs:
+      - reports/absa/cards/product_cards_with_images.recalc.jsonl
+
+  make_product_cards_html_recalc:
+    cmd: >
+      python scripts/absa/make_product_cards_html.py
+      --params params.yaml
+      --input_jsonl reports/absa/cards/product_cards_with_images.recalc.jsonl
+      --output_html reports/absa/cards/product_cards_recalc.html
+      --thumbs_dir data/cache/product_images/thumbs
+    deps:
+      - scripts/absa/make_product_cards_html.py
+      - reports/absa/cards/product_cards_with_images.recalc.jsonl
+      - params.yaml
+    outs:
+      - reports/absa/cards/product_cards_recalc.html
+
+  make_product_cards_html:
+    cmd: python scripts/absa/make_product_cards_html.py
+    deps:
+      - scripts/absa/make_product_cards_html.py
+      - reports/absa/cards/product_cards_with_images.jsonl
+      - data/cache/product_images/thumbs
+    outs:
+      - reports/absa/cards/product_cards.html
+
+  absa_report:
+    cmd: python scripts/absa/make_absa_report.py --params params.yaml
+    deps:
+      - scripts/absa/make_absa_report.py
+      - params.yaml
+    outs:
+      - reports/absa/final_report/
+  build_preview_fused:
+    cmd: >
+      python scripts/absa/build_preview_fused.py
+      --reviews_delta ${build_preview_fused.reviews_delta}
+      --ate_mapped_parquet ${build_preview_fused.ate_mapped_parquet}
+      --ate_spans_parquet ${build_preview_fused.ate_spans_parquet}
+      --sentiment_parquet ${build_preview_fused.sentiment_parquet}
+      --output_parquet ${build_preview_fused.output_parquet}
+      --coalesce ${build_preview_fused.coalesce}
+      --limit_show ${build_preview_fused.limit_show}
+    deps:
+      - scripts/absa/build_preview_fused.py
+      - ${build_preview_fused.reviews_delta}
+      - ${build_preview_fused.ate_mapped_parquet}
+      - ${build_preview_fused.ate_spans_parquet}
+      - ${build_preview_fused.sentiment_parquet}
+    outs:
+      - ${build_preview_fused.output_parquet}
+
+  aspect_opportunity:
+    cmd: >
+      python scripts/viz/aspect_opportunity.py
+      --preview_parquet ${aspect_opportunity.preview_parquet}
+      --products_parquet ${aspect_opportunity.products_parquet}
+      --reviews_delta ${aspect_opportunity.reviews_delta}
+      --out_dir ${aspect_opportunity.out_dir}
+      --bubble_html ${aspect_opportunity.bubble_html}
+      --heatmap_html ${aspect_opportunity.heatmap_html}
+      --table_csv ${aspect_opportunity.table_csv}
+      --category_filter ${aspect_opportunity.category_filter}
+      --min_reviews_cell ${aspect_opportunity.min_reviews_cell}
+      --min_volume_w ${aspect_opportunity.min_volume_w}
+      --top_aspects_bubble ${aspect_opportunity.top_aspects_bubble}
+      --top_brands_heatmap ${aspect_opportunity.top_brands_heatmap}
+      --weight_cap_pct ${aspect_opportunity.weight_cap_pct}
+      --pixels_per_brand ${aspect_opportunity.pixels_per_brand}
+      --min_panel_width ${aspect_opportunity.min_panel_width}
+    deps:
+      - scripts/viz/aspect_opportunity.py
+      - ${aspect_opportunity.preview_parquet}
+      - ${aspect_opportunity.products_parquet}
+      - ${aspect_opportunity.reviews_delta}
+    outs:
+      - ${aspect_opportunity.bubble_html}
+      - ${aspect_opportunity.heatmap_html}
+      - ${aspect_opportunity.table_csv}
+
+  priority_tables_simple:
+    cmd: >
+      python scripts/viz/make_priority_tables_simple.py
+      --input_csv ${priority_tables_simple.input_csv}
+      --out_dir ${priority_tables_simple.out_dir}
+      --thr_excess_high ${priority_tables_simple.thr_excess_high}
+      --thr_compl_high ${priority_tables_simple.thr_compl_high}
+      --thr_compl_low ${priority_tables_simple.thr_compl_low}
+      --thr_quality_high ${priority_tables_simple.thr_quality_high}
+      --min_reviews ${priority_tables_simple.min_reviews}
+      --min_volume_w ${priority_tables_simple.min_volume_w}
+      --top_k_overall ${priority_tables_simple.top_k_overall}
+      --top_k_per_cat ${priority_tables_simple.top_k_per_cat}
+    deps:
+      - scripts/viz/make_priority_tables_simple.py
+      - ${priority_tables_simple.input_csv}
+    outs:
+      - ${priority_tables_simple.out_dir}/simple_top_risks_overall.csv
+      - ${priority_tables_simple.out_dir}/simple_top_strengths_overall.csv
+      - ${priority_tables_simple.out_dir}/simple_top_risks_by_category.csv
+      - ${priority_tables_simple.out_dir}/simple_top_strengths_by_category.csv
+      - ${priority_tables_simple.out_dir}/simple_labels_all.csv
+
+  priority_tables:
+    cmd: >
+      python scripts/viz/make_priority_tables.py
+      --input_csv ${priority_tables.input_csv}
+      --out_dir ${priority_tables.out_dir}
+      --k_conf ${priority_tables.k_conf}
+      --bayes_strength ${priority_tables.bayes_strength}
+      --top_k_overall ${priority_tables.top_k_overall}
+      --top_k_per_cat ${priority_tables.top_k_per_cat}
+      --min_reviews ${priority_tables.min_reviews}
+      --min_volume_w ${priority_tables.min_volume_w}
+    deps:
+      - scripts/viz/make_priority_tables.py
+      - ${priority_tables.input_csv}
+    outs:
+      - ${priority_tables.out_dir}/top_risks_overall.csv
+      - ${priority_tables.out_dir}/top_strengths_overall.csv
+      - ${priority_tables.out_dir}/top_risks_by_category.csv
+      - ${priority_tables.out_dir}/top_strengths_by_category.csv
+
+  deep_dive_reviews:
+    cmd: >
+      python scripts/viz/deep_dive_reviews.py
+      --preview_parquet ${deep_dive_reviews.preview_parquet}
+      --top_risks_csv ${deep_dive_reviews.top_risks_csv}
+      --out_dir ${deep_dive_reviews.out_dir}
+      --top_cells ${deep_dive_reviews.top_cells}
+      --neg_label ${deep_dive_reviews.neg_label}
+      --sample_reviews_per_cell ${deep_dive_reviews.sample_reviews_per_cell}
+    deps:
+      - scripts/viz/deep_dive_reviews.py
+      - ${deep_dive_reviews.preview_parquet}
+      - ${deep_dive_reviews.top_risks_csv}
+    outs:
+      - ${deep_dive_reviews.out_dir}
+
+  ingredients_differential:
+    cmd: >
+      python scripts/viz/ingredients_differential.py
+      --products_parquet ${ingredients_differential.products_parquet}
+      --top_risks_csv ${ingredients_differential.top_risks_csv}
+      --out_dir ${ingredients_differential.out_dir}
+      --top_cells ${ingredients_differential.top_cells}
+      --top_terms ${ingredients_differential.top_terms}
+    deps:
+      - scripts/viz/ingredients_differential.py
+      - ${ingredients_differential.products_parquet}
+      - ${ingredients_differential.top_risks_csv}
+    outs:
+      - ${ingredients_differential.out_dir}
+
+  viz_box_from_preview:
+    cmd: >
+      python scripts/viz/viz_box_from_preview.py
+      --input_parquet ${viz_box_from_preview.input_parquet}
+      --output_html ${viz_box_from_preview.output_html}
+      --metric ${viz_box_from_preview.metric}
+      --category_filter ${viz_box_from_preview.category_filter}
+      --min_n_per_cell ${viz_box_from_preview.min_n_per_cell}
+      --max_aspects ${viz_box_from_preview.max_aspects}
+      --max_rows ${viz_box_from_preview.max_rows}
+      --pixels_per_brand ${viz_box_from_preview.pixels_per_brand}
+      --panel_height ${viz_box_from_preview.panel_height}
+    deps:
+      - scripts/viz/viz_box_from_preview.py
+      - ${viz_box_from_preview.input_parquet}
+    outs:
+      - ${viz_box_from_preview.output_html}
+
+  viz_ridge_from_preview:
+    cmd: >
+      python scripts/viz/viz_ridge_from_preview.py
+      --input_parquet ${viz_ridge_from_preview.input_parquet}
+      --output_html ${viz_ridge_from_preview.output_html}
+      --metric ${viz_ridge_from_preview.metric}
+      --category_filter ${viz_ridge_from_preview.category_filter}
+      --min_n_per_cell ${viz_ridge_from_preview.min_n_per_cell}
+      --max_aspects ${viz_ridge_from_preview.max_aspects}
+      --max_brands_per_aspect ${viz_ridge_from_preview.max_brands_per_aspect}
+      --extent_lo ${viz_ridge_from_preview.extent_lo}
+      --extent_hi ${viz_ridge_from_preview.extent_hi}
+    deps:
+      - scripts/viz/viz_ridge_from_preview.py
+      - ${viz_ridge_from_preview.input_parquet}
+    outs:
+      - ${viz_ridge_from_preview.output_html}
+
+  viz_violin_secondary_rating:
+    cmd: >
+      python scripts/viz/viz_violin_secondary_rating.py
+      --input_parquet ${viz_violin_secondary_rating.input_parquet}
+      --output_html ${viz_violin_secondary_rating.output_html}
+      --metric ${viz_violin_secondary_rating.metric}
+      --category_filter ${viz_violin_secondary_rating.category_filter}
+      --min_reviews_per_cat ${viz_violin_secondary_rating.min_reviews_per_cat}
+      --max_categories ${viz_violin_secondary_rating.max_categories}
+      --per_cat_width ${viz_violin_secondary_rating.per_cat_width}
+      --row_height ${viz_violin_secondary_rating.row_height}
+      --bandwidth ${viz_violin_secondary_rating.bandwidth}
+      --bins ${viz_violin_secondary_rating.bins}
+      --dedup_reviews ${viz_violin_secondary_rating.dedup_reviews}
+  viz_market_brand_panel:
+    cmd: >
+      python scripts/viz/viz_market_brand_panel.py
+      --input_parquet ${viz_market_brand_panel.input_parquet}
+      --products_parquet ${viz_market_brand_panel.products_parquet}
+      --reviews_delta ${viz_market_brand_panel.reviews_delta}
+      --output_html_sticky ${viz_market_brand_panel.output_html_sticky}
+      --metric ${viz_market_brand_panel.metric}
+      --dedup_reviews ${viz_market_brand_panel.dedup_reviews}
+      --min_reviews_per_cat ${viz_market_brand_panel.min_reviews_per_cat}
+      --max_categories ${viz_market_brand_panel.max_categories}
+      --bins ${viz_market_brand_panel.bins}
+      --bandwidth ${viz_market_brand_panel.bandwidth}
+      --jitter_sigma ${viz_market_brand_panel.jitter_sigma}
+      --market_width ${viz_market_brand_panel.market_width}
+      --market_height ${viz_market_brand_panel.market_height}
+      --brand_width ${viz_market_brand_panel.brand_width}
+      --brand_height ${viz_market_brand_panel.brand_height}
+      --brand_cols ${viz_market_brand_panel.brand_cols}
+      --top_brands_per_cat ${viz_market_brand_panel.top_brands_per_cat}
+    deps:
+      - scripts/viz/viz_market_brand_panel.py
+      - ${viz_market_brand_panel.input_parquet}
+      - ${viz_market_brand_panel.products_parquet}
+      - ${viz_market_brand_panel.reviews_delta}
+    outs:
+      - ${viz_market_brand_panel.output_html_sticky}
+  viz_market_brand_bubbles:
+    cmd: >
+      python scripts/viz/viz_market_brand_bubbles.py
+      --input_parquet ${viz_market_brand_bubbles.input_parquet}
+      --products_parquet ${viz_market_brand_bubbles.products_parquet}
+      --reviews_delta ${viz_market_brand_bubbles.reviews_delta}
+      --secondary_map_parquet ${viz_market_brand_bubbles.secondary_map_parquet}
+      --output_html ${viz_market_brand_bubbles.output_html}
+      --dedup_reviews ${viz_market_brand_bubbles.dedup_reviews}
+      --min_reviews_per_cat ${viz_market_brand_bubbles.min_reviews_per_cat}
+      --max_categories ${viz_market_brand_bubbles.max_categories}
+      --weight_cap_pct ${viz_market_brand_bubbles.weight_cap_pct}
+      --top_products ${viz_market_brand_bubbles.top_products}
+    deps:
+      - scripts/viz/viz_market_brand_bubbles.py
+      - ${viz_market_brand_bubbles.input_parquet}
+      - ${viz_market_brand_bubbles.products_parquet}
+      - ${viz_market_brand_bubbles.reviews_delta}
+    outs:
+      - ${viz_market_brand_bubbles.output_html}
+
+  link_top10_cards:
+    cmd: >
+      python scripts/viz/link_top10_cards.py
+      --per_category_csv ${loves_top10.per_category_csv}
+      --global_csv ${loves_top10.global_csv}
+      --products_parquet ${loves_top10.products_parquet}
+      --cards_dir ${loves_top10.cards_dir}
+      --thumbs_dir ${loves_top10.thumbs_dir}
+      --out_html ${loves_top10.out_html}
+      --card_pattern ${loves_top10.card_pattern}
+    deps:
+      - scripts/viz/link_top10_cards.py
+      - ${loves_top10.per_category_csv}
+      - ${loves_top10.global_csv}
+      - ${loves_top10.products_parquet}
+    outs:
+      - ${loves_top10.out_html}
+
+  cards_index_filters_recalc_wfilters:
+    cmd: >
+      python scripts/viz/cards_index_with_filters.py
+      --products_parquet ${cards_index.products_parquet}
+      --cards_dir ${cards_index.cards_dir}
+      --thumbs_dir ${cards_index.thumbs_dir}
+      --out_html ${cards_index.recalc_out_html_wfilters}
+      --card_pattern ${cards_index.card_pattern}
+    deps:
+      - scripts/viz/cards_index_with_filters.py
+      - ${cards_index.products_parquet}
+    outs:
+      - ${cards_index.recalc_out_html_wfilters}
