@@ -149,7 +149,82 @@ stages:
       - data/exploitation/modelos_input/sample_tvt/test
     outs:
       - reports/albert_sample_30pct/eval
+  
+  train_rf_sample:
+    cmd: >
+      MLFLOW_RUN_NAME=rf_sample_30pct
+      python scripts/training/train_random_forest.py
+      --train data/exploitation/modelos_input/sample_tvt/train
+      --val   data/exploitation/modelos_input/sample_tvt/val
+      --model-out models/sentiment_rf_sample
+      --params params.yaml
+    deps:
+      - scripts/training/train_random_forest.py
+      - data/exploitation/modelos_input/sample_tvt/train
+      - data/exploitation/modelos_input/sample_tvt/val
+      - params.yaml
+    outs:
+      - models/sentiment_rf_sample
+      - reports/sentiment_rf  
 
+  evaluate_rf_sample:
+    cmd: >
+      python scripts/training/infer_random_forest.py
+      --model-dir models/sentiment_rf_sample
+      --input data/exploitation/modelos_input/sample_tvt/test
+      --output-dir reports/sentiment_rf_sample/eval
+      --text-col review_text --id-col review_id --use-extra 1
+      &&
+      python scripts/evaluation/metrics_overall.py
+      --preds reports/sentiment_rf_sample/eval/test_predictions.parquet
+      --out_dir reports/sentiment_rf_sample/eval
+    deps:
+      - scripts/training/infer_random_forest.py
+      - scripts/evaluation/metrics_overall.py
+      - models/sentiment_rf_sample
+      - data/exploitation/modelos_input/sample_tvt/test
+    outs:
+      - reports/sentiment_rf_sample/eval
+
+  infer_ulta_top50_albert:
+    cmd: >
+      python scripts/infer/infer_top_upvoted_ulta.py
+      --backend albert
+      --input_delta 'data/trusted/ulta_clean/Ulta Skincare Reviews'
+      --model_dir models/albert_sample_30pct
+      --top_n 50
+      --max_len 192
+      --batch_size 64
+      --output_parquet reports/albert_sample_30pct/ulta_top50/predictions.parquet
+      --coalesce 1
+      --demote_neutral 1
+      --min_neutral_prob 0.90
+    deps:
+      - scripts/infer/infer_top_upvoted_ulta.py
+      - models/albert_sample_30pct
+      - 'data/trusted/ulta_clean/Ulta Skincare Reviews'
+    outs:
+      - reports/albert_sample_30pct/ulta_top50
+
+  infer_ulta_top50_rf:
+    cmd: >
+      python scripts/infer/infer_top_upvoted_ulta.py
+      --backend rf
+      --input_delta 'data/trusted/ulta_clean/Ulta Skincare Reviews'
+      --model_dir models/sentiment_rf_sample
+      --top_n 50
+      --output_parquet reports/sentiment_rf_sample/ulta_top50/predictions.parquet
+      --coalesce 1
+      --demote_neutral 1
+      --min_neutral_prob 0.90
+      --use_title 1
+      --use_extra 1
+    deps:
+      - scripts/infer/infer_top_upvoted_ulta.py
+      - models/sentiment_rf_sample
+      - 'data/trusted/ulta_clean/Ulta Skincare Reviews'
+    outs:
+      - reports/sentiment_rf_sample/ulta_top50
 
   merge_reviews_product_info:
     cmd: >
@@ -328,82 +403,6 @@ stages:
       - reports/absa/final_all:
           persist: true
 
-  train_rf_sample:
-    cmd: >
-      MLFLOW_RUN_NAME=rf_sample_30pct
-      python scripts/training/train_random_forest.py
-      --train data/exploitation/modelos_input/sample_tvt/train
-      --val   data/exploitation/modelos_input/sample_tvt/val
-      --model-out models/sentiment_rf_sample
-      --params params.yaml
-    deps:
-      - scripts/training/train_random_forest.py
-      - data/exploitation/modelos_input/sample_tvt/train
-      - data/exploitation/modelos_input/sample_tvt/val
-      - params.yaml
-    outs:
-      - models/sentiment_rf_sample
-      - reports/sentiment_rf  
-
-  evaluate_rf_sample:
-    cmd: >
-      python scripts/training/infer_random_forest.py
-      --model-dir models/sentiment_rf_sample
-      --input data/exploitation/modelos_input/sample_tvt/test
-      --output-dir reports/sentiment_rf_sample/eval
-      --text-col review_text --id-col review_id --use-extra 1
-      &&
-      python scripts/evaluation/metrics_overall.py
-      --preds reports/sentiment_rf_sample/eval/test_predictions.parquet
-      --out_dir reports/sentiment_rf_sample/eval
-    deps:
-      - scripts/training/infer_random_forest.py
-      - scripts/evaluation/metrics_overall.py
-      - models/sentiment_rf_sample
-      - data/exploitation/modelos_input/sample_tvt/test
-    outs:
-      - reports/sentiment_rf_sample/eval
-
-  infer_ulta_top50_albert:
-    cmd: >
-      python scripts/infer/infer_top_upvoted_ulta.py
-      --backend albert
-      --input_delta 'data/trusted/ulta_clean/Ulta Skincare Reviews'
-      --model_dir models/albert_sample_30pct
-      --top_n 50
-      --max_len 192
-      --batch_size 64
-      --output_parquet reports/albert_sample_30pct/ulta_top50/predictions.parquet
-      --coalesce 1
-      --demote_neutral 1
-      --min_neutral_prob 0.90
-    deps:
-      - scripts/infer/infer_top_upvoted_ulta.py
-      - models/albert_sample_30pct
-      - 'data/trusted/ulta_clean/Ulta Skincare Reviews'
-    outs:
-      - reports/albert_sample_30pct/ulta_top50
-
-  infer_ulta_top50_rf:
-    cmd: >
-      python scripts/infer/infer_top_upvoted_ulta.py
-      --backend rf
-      --input_delta 'data/trusted/ulta_clean/Ulta Skincare Reviews'
-      --model_dir models/sentiment_rf_sample
-      --top_n 50
-      --output_parquet reports/sentiment_rf_sample/ulta_top50/predictions.parquet
-      --coalesce 1
-      --demote_neutral 1
-      --min_neutral_prob 0.90
-      --use_title 1
-      --use_extra 1
-    deps:
-      - scripts/infer/infer_top_upvoted_ulta.py
-      - models/sentiment_rf_sample
-      - 'data/trusted/ulta_clean/Ulta Skincare Reviews'
-    outs:
-      - reports/sentiment_rf_sample/ulta_top50
-
   export_snapshot:
     cmd: >
       python scripts/absa/export_product_info_snapshot.py
@@ -430,7 +429,14 @@ stages:
 
   absa_insights_altair:
     cmd: >
-      python scripts/absa/absa_insights_altair.py --params params.yaml
+      python scripts/absa/absa_insights_altair.py
+      --params params.yaml
+      --spans reports/absa/ate_spans.parquet
+      --mapped reports/absa/ate_spans_mapped.parquet
+      --sentiment reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+      --product_snapshot data/exploitation/product_info_snapshot.parquet
+      --outdir reports/absa/insights
+      --save_csv
     deps:
       - scripts/absa/absa_insights_altair.py
       - reports/absa/ate_spans.parquet
@@ -443,7 +449,10 @@ stages:
 
   loves_top10_duckdb:
     cmd: >
-      python scripts/absa/top10_loves_duckdb.py --params params.yaml
+      python scripts/absa/top10_loves_duckdb.py
+      --params params.yaml
+      --src data/trusted/reviews_product_info_clean_full
+      --outdir reports/absa/loves_top10
     deps:
       - scripts/absa/top10_loves_duckdb.py
       - data/trusted/reviews_product_info_clean_full
@@ -451,7 +460,7 @@ stages:
     outs:
       - reports/absa/loves_top10/global_top10.csv
       - reports/absa/loves_top10/per_category_top10.csv
-
+      
   fetch_product_images:
     cmd: python scripts/absa/fetch_product_images.py --params params.yaml
     deps:
@@ -532,160 +541,22 @@ stages:
   build_preview_fused:
     cmd: >
       python scripts/absa/build_preview_fused.py
-      --reviews_delta ${build_preview_fused.reviews_delta}
-      --ate_mapped_parquet ${build_preview_fused.ate_mapped_parquet}
-      --ate_spans_parquet ${build_preview_fused.ate_spans_parquet}
-      --sentiment_parquet ${build_preview_fused.sentiment_parquet}
-      --output_parquet ${build_preview_fused.output_parquet}
-      --coalesce ${build_preview_fused.coalesce}
-      --limit_show ${build_preview_fused.limit_show}
+      --reviews_delta data/trusted/reviews_product_info_clean_full
+      --ate_mapped_parquet reports/absa/ate_spans_mapped.parquet
+      --ate_spans_parquet reports/absa/ate_spans.parquet
+      --sentiment_parquet reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+      --output_parquet reports/absa/preview/preview_fused.parquet
+      --coalesce 1
+      --limit_show 10
     deps:
       - scripts/absa/build_preview_fused.py
-      - ${build_preview_fused.reviews_delta}
-      - ${build_preview_fused.ate_mapped_parquet}
-      - ${build_preview_fused.ate_spans_parquet}
-      - ${build_preview_fused.sentiment_parquet}
+      - data/trusted/reviews_product_info_clean_full
+      - reports/absa/ate_spans_mapped.parquet
+      - reports/absa/ate_spans.parquet
+      - reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
     outs:
-      - ${build_preview_fused.output_parquet}
-
-  aspect_opportunity:
-    cmd: >
-      python scripts/viz/aspect_opportunity.py
-      --preview_parquet ${aspect_opportunity.preview_parquet}
-      --products_parquet ${aspect_opportunity.products_parquet}
-      --reviews_delta ${aspect_opportunity.reviews_delta}
-      --out_dir ${aspect_opportunity.out_dir}
-      --bubble_html ${aspect_opportunity.bubble_html}
-      --heatmap_html ${aspect_opportunity.heatmap_html}
-      --table_csv ${aspect_opportunity.table_csv}
-      --category_filter ${aspect_opportunity.category_filter}
-      --min_reviews_cell ${aspect_opportunity.min_reviews_cell}
-      --min_volume_w ${aspect_opportunity.min_volume_w}
-      --top_aspects_bubble ${aspect_opportunity.top_aspects_bubble}
-      --top_brands_heatmap ${aspect_opportunity.top_brands_heatmap}
-      --weight_cap_pct ${aspect_opportunity.weight_cap_pct}
-      --pixels_per_brand ${aspect_opportunity.pixels_per_brand}
-      --min_panel_width ${aspect_opportunity.min_panel_width}
-    deps:
-      - scripts/viz/aspect_opportunity.py
-      - ${aspect_opportunity.preview_parquet}
-      - ${aspect_opportunity.products_parquet}
-      - ${aspect_opportunity.reviews_delta}
-    outs:
-      - ${aspect_opportunity.bubble_html}
-      - ${aspect_opportunity.heatmap_html}
-      - ${aspect_opportunity.table_csv}
-
-  priority_tables_simple:
-    cmd: >
-      python scripts/viz/make_priority_tables_simple.py
-      --input_csv ${priority_tables_simple.input_csv}
-      --out_dir ${priority_tables_simple.out_dir}
-      --thr_excess_high ${priority_tables_simple.thr_excess_high}
-      --thr_compl_high ${priority_tables_simple.thr_compl_high}
-      --thr_compl_low ${priority_tables_simple.thr_compl_low}
-      --thr_quality_high ${priority_tables_simple.thr_quality_high}
-      --min_reviews ${priority_tables_simple.min_reviews}
-      --min_volume_w ${priority_tables_simple.min_volume_w}
-      --top_k_overall ${priority_tables_simple.top_k_overall}
-      --top_k_per_cat ${priority_tables_simple.top_k_per_cat}
-    deps:
-      - scripts/viz/make_priority_tables_simple.py
-      - ${priority_tables_simple.input_csv}
-    outs:
-      - ${priority_tables_simple.out_dir}/simple_top_risks_overall.csv
-      - ${priority_tables_simple.out_dir}/simple_top_strengths_overall.csv
-      - ${priority_tables_simple.out_dir}/simple_top_risks_by_category.csv
-      - ${priority_tables_simple.out_dir}/simple_top_strengths_by_category.csv
-      - ${priority_tables_simple.out_dir}/simple_labels_all.csv
-
-  priority_tables:
-    cmd: >
-      python scripts/viz/make_priority_tables.py
-      --input_csv ${priority_tables.input_csv}
-      --out_dir ${priority_tables.out_dir}
-      --k_conf ${priority_tables.k_conf}
-      --bayes_strength ${priority_tables.bayes_strength}
-      --top_k_overall ${priority_tables.top_k_overall}
-      --top_k_per_cat ${priority_tables.top_k_per_cat}
-      --min_reviews ${priority_tables.min_reviews}
-      --min_volume_w ${priority_tables.min_volume_w}
-    deps:
-      - scripts/viz/make_priority_tables.py
-      - ${priority_tables.input_csv}
-    outs:
-      - ${priority_tables.out_dir}/top_risks_overall.csv
-      - ${priority_tables.out_dir}/top_strengths_overall.csv
-      - ${priority_tables.out_dir}/top_risks_by_category.csv
-      - ${priority_tables.out_dir}/top_strengths_by_category.csv
-
-  deep_dive_reviews:
-    cmd: >
-      python scripts/viz/deep_dive_reviews.py
-      --preview_parquet ${deep_dive_reviews.preview_parquet}
-      --top_risks_csv ${deep_dive_reviews.top_risks_csv}
-      --out_dir ${deep_dive_reviews.out_dir}
-      --top_cells ${deep_dive_reviews.top_cells}
-      --neg_label ${deep_dive_reviews.neg_label}
-      --sample_reviews_per_cell ${deep_dive_reviews.sample_reviews_per_cell}
-    deps:
-      - scripts/viz/deep_dive_reviews.py
-      - ${deep_dive_reviews.preview_parquet}
-      - ${deep_dive_reviews.top_risks_csv}
-    outs:
-      - ${deep_dive_reviews.out_dir}
-
-  ingredients_differential:
-    cmd: >
-      python scripts/viz/ingredients_differential.py
-      --products_parquet ${ingredients_differential.products_parquet}
-      --top_risks_csv ${ingredients_differential.top_risks_csv}
-      --out_dir ${ingredients_differential.out_dir}
-      --top_cells ${ingredients_differential.top_cells}
-      --top_terms ${ingredients_differential.top_terms}
-    deps:
-      - scripts/viz/ingredients_differential.py
-      - ${ingredients_differential.products_parquet}
-      - ${ingredients_differential.top_risks_csv}
-    outs:
-      - ${ingredients_differential.out_dir}
-
-  viz_box_from_preview:
-    cmd: >
-      python scripts/viz/viz_box_from_preview.py
-      --input_parquet ${viz_box_from_preview.input_parquet}
-      --output_html ${viz_box_from_preview.output_html}
-      --metric ${viz_box_from_preview.metric}
-      --category_filter ${viz_box_from_preview.category_filter}
-      --min_n_per_cell ${viz_box_from_preview.min_n_per_cell}
-      --max_aspects ${viz_box_from_preview.max_aspects}
-      --max_rows ${viz_box_from_preview.max_rows}
-      --pixels_per_brand ${viz_box_from_preview.pixels_per_brand}
-      --panel_height ${viz_box_from_preview.panel_height}
-    deps:
-      - scripts/viz/viz_box_from_preview.py
-      - ${viz_box_from_preview.input_parquet}
-    outs:
-      - ${viz_box_from_preview.output_html}
-
-  viz_ridge_from_preview:
-    cmd: >
-      python scripts/viz/viz_ridge_from_preview.py
-      --input_parquet ${viz_ridge_from_preview.input_parquet}
-      --output_html ${viz_ridge_from_preview.output_html}
-      --metric ${viz_ridge_from_preview.metric}
-      --category_filter ${viz_ridge_from_preview.category_filter}
-      --min_n_per_cell ${viz_ridge_from_preview.min_n_per_cell}
-      --max_aspects ${viz_ridge_from_preview.max_aspects}
-      --max_brands_per_aspect ${viz_ridge_from_preview.max_brands_per_aspect}
-      --extent_lo ${viz_ridge_from_preview.extent_lo}
-      --extent_hi ${viz_ridge_from_preview.extent_hi}
-    deps:
-      - scripts/viz/viz_ridge_from_preview.py
-      - ${viz_ridge_from_preview.input_parquet}
-    outs:
-      - ${viz_ridge_from_preview.output_html}
-
+      - reports/absa/preview/preview_fused.parquet
+ 
   viz_violin_secondary_rating:
     cmd: >
       python scripts/viz/viz_violin_secondary_rating.py
@@ -700,6 +571,11 @@ stages:
       --bandwidth ${viz_violin_secondary_rating.bandwidth}
       --bins ${viz_violin_secondary_rating.bins}
       --dedup_reviews ${viz_violin_secondary_rating.dedup_reviews}
+    deps:
+      - scripts/viz/viz_violin_secondary_rating.py
+      - ${viz_violin_secondary_rating.input_parquet}
+    outs:
+      - ${viz_violin_secondary_rating.output_html}
   viz_market_brand_panel:
     cmd: >
       python scripts/viz/viz_market_brand_panel.py
@@ -748,34 +624,52 @@ stages:
     outs:
       - ${viz_market_brand_bubbles.output_html}
 
-  link_top10_cards:
-    cmd: >
-      python scripts/viz/link_top10_cards.py
-      --per_category_csv ${loves_top10.per_category_csv}
-      --global_csv ${loves_top10.global_csv}
-      --products_parquet ${loves_top10.products_parquet}
-      --cards_dir ${loves_top10.cards_dir}
-      --thumbs_dir ${loves_top10.thumbs_dir}
-      --out_html ${loves_top10.out_html}
-      --card_pattern ${loves_top10.card_pattern}
-    deps:
-      - scripts/viz/link_top10_cards.py
-      - ${loves_top10.per_category_csv}
-      - ${loves_top10.global_csv}
-      - ${loves_top10.products_parquet}
-    outs:
-      - ${loves_top10.out_html}
+  volumetria_lake:
+    cmd: 'python scripts/EDA/volumetria_lake.py --roots data/landing data/trusted
+      data/exploitation --outdir reports/volumetria --fix-nanos --inplace
 
-  cards_index_filters_recalc_wfilters:
-    cmd: >
-      python scripts/viz/cards_index_with_filters.py
-      --products_parquet ${cards_index.products_parquet}
-      --cards_dir ${cards_index.cards_dir}
-      --thumbs_dir ${cards_index.thumbs_dir}
-      --out_html ${cards_index.recalc_out_html_wfilters}
-      --card_pattern ${cards_index.card_pattern}
+      '
     deps:
-      - scripts/viz/cards_index_with_filters.py
-      - ${cards_index.products_parquet}
+    - scripts/EDA/volumetria_lake.py
+    - data/landing
+    - data/trusted
+    - data/exploitation
     outs:
-      - ${cards_index.recalc_out_html_wfilters}
+    - reports/volumetria
+  
+  eda_landing_all:
+    cmd: 'python scripts/EDA/eda_landing.py --mode landing_all
+
+      '
+    deps:
+    - scripts/EDA/eda_landing.py
+    - data/landing/sephora/raw
+    - data/landing/ulta/raw
+    outs:
+    - reports/eda/landing_sephora_reviews
+    - reports/eda/landing_ulta_reviews
+    - reports/eda/landing_sephora_products
+
+  eda_trusted_all:
+    cmd: 'python scripts/EDA/eda_trusted.py --mode trusted_all
+
+      '
+    deps:
+    - scripts/EDA/eda_trusted.py
+    - data/trusted/reviews_full
+    - data/trusted/reviews_product_info_clean_full
+    - data/trusted/reviews_sample_30pct
+    outs:
+    - reports/eda/trusted_reviews_full
+    - reports/eda/trusted_reviews_product_info_clean_full
+    - reports/eda/trusted_reviews_sample_30pct
+    
+  eda_exploitation_all:
+    cmd: 'python scripts/EDA/eda_exploitation.py --mode exploitation_all
+
+      '
+    deps:
+    - scripts/EDA/eda_exploitation.py
+    - data/exploitation/product_info_snapshot.parquet
+    outs:
+    - reports/eda/exploitation_product_info_snapshot

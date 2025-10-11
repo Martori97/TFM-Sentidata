@@ -437,18 +437,16 @@ thumbs:
   quality: 80
   sleep_sec: 0.5
   timeout: 12
-
 build_preview_fused:
   reviews_delta: data/trusted/reviews_product_info_clean_full
   ate_mapped_parquet: reports/absa/ate_spans_mapped.parquet
   ate_spans_parquet: reports/absa/ate_spans.parquet
   sentiment_parquet: reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
-  output_parquet: reports/absa/final_all/preview_fused.parquet
+  output_parquet: reports/absa/preview/preview_fused.parquet
   coalesce: 1
   limit_show: 10
-
 aspect_opportunity:
-  preview_parquet: reports/absa/final_all/preview_fused.parquet
+  preview_parquet: reports/absa/preview/preview_fused.parquet
   products_parquet: data/exploitation/product_info_snapshot.parquet
   reviews_delta: data/trusted/reviews_product_info_clean_full
   out_dir: reports/viz
@@ -463,83 +461,54 @@ aspect_opportunity:
   weight_cap_pct: 95.0
   pixels_per_brand: 18
   min_panel_width: 1000
-
-priority_tables_simple:
-  input_csv: reports/viz/negatives_table.csv
-  out_dir: reports/viz
-  thr_excess_high: 0.03
-  thr_compl_high: 0.12
-  thr_compl_low: 0.08
-  thr_quality_high: 0.65
-  min_reviews: 50
-  min_volume_w: 10.0
-  top_k_overall: 100
-  top_k_per_cat: 30
-
+  
 priority_tables:
   input_csv: reports/viz/negatives_table.csv
   out_dir: reports/viz
   k_conf: 200
-  bayes_strength: 0        # 0 = off; p.ej., 150 para prior por categoría
+  bayes_strength: 0
   min_reviews: 50
   min_volume_w: 10.0
   top_k_overall: 100
   top_k_per_cat: 30
-
-deep_dive_reviews:
-  preview_parquet: reports/absa/final_all/preview_fused.parquet
-  top_risks_csv: reports/viz/simple_top_risks_overall.csv
-  out_dir: reports/deep_dive
-  top_cells: 20
-  neg_label: 0
-  sample_reviews_per_cell: 200
-
-ingredients_differential:
-  products_parquet: data/exploitation/product_info_snapshot.parquet
-  top_risks_csv: reports/viz/simple_top_risks_overall.csv
-  out_dir: reports/ingredients_diff
-  top_cells: 20
-  top_terms: 40
-
 viz_box_from_preview:
-  input_parquet: reports/absa/final_all/preview_fused.parquet
-  output_html: reports/viz/box_by_aspect_brand.html
-  metric: rating             # rating | pred3 | pos_minus_neg
+  input_parquet: reports/absa/preview/preview_fused.parquet
+  output_html: reports/viz/box_from_preview.html
+  metric: pos_minus_neg         # o 'rating'
   category_filter: __ALL__
   min_n_per_cell: 50
-  max_aspects: 8
-  max_rows: 1000000
+  max_aspects: 12
+  max_rows: 200
   pixels_per_brand: 18
-  panel_height: 300
+  panel_height: 450
 
 viz_ridge_from_preview:
-  input_parquet: reports/absa/final_all/preview_fused.parquet
-  output_html: reports/viz/ridge_by_aspect_brand.html
-  metric: pos_minus_neg      # rating | pos_minus_neg
+  input_parquet: reports/absa/preview/preview_fused.parquet
+  output_html: reports/viz/ridge_from_preview.html
+  metric: pos_minus_neg         # o 'rating'
   category_filter: __ALL__
   min_n_per_cell: 50
-  max_aspects: 8
+  max_aspects: 10
   max_brands_per_aspect: 25
-  extent_lo: 0.0
+  extent_lo: -1.0
   extent_hi: 1.0
+
 viz_violin_secondary_rating:
-  input_parquet: reports/absa/final_all/preview_fused.parquet
+  input_parquet: reports/absa/preview/preview_fused.parquet
   output_html: reports/viz/violin_secondary_rating.html
-  metric: rating
-  category_filter: All
+  metric: rating                # o 'pos_minus_neg'
+  category_filter: __ALL__
   min_reviews_per_cat: 200
   max_categories: 40
-  per_cat_width: 120
-  row_height: 300
-  bandwidth: auto
-  bins: 200
-  dedup_reviews: true   # <-- 1 review = 1 voto
+  per_cat_width: 900
+  row_height: 120
+  bandwidth: 0.15               # o 'auto' si tu script lo soporta
+  bins: 30
+  dedup_reviews: 1
 viz_market_brand_panel:
-  input_parquet: reports/absa/final_all/preview_fused.parquet
+  input_parquet: reports/absa/preview/preview_fused.parquet
   products_parquet: data/exploitation/product_info_snapshot.parquet
   reviews_delta: data/trusted/reviews_product_info_clean_full
-  
-
   output_html_sticky: reports/viz/market_brand_panel_sticky.html
   metric: rating
   dedup_reviews: true
@@ -554,19 +523,17 @@ viz_market_brand_panel:
   brand_height: 120
   brand_cols: 6
   top_brands_per_cat: 60
-
 viz_market_brand_bubbles:
-  input_parquet: reports/absa/final_all/preview_fused.parquet
+  input_parquet: reports/absa/preview/preview_fused.parquet
   products_parquet: data/exploitation/product_info_snapshot.parquet
   reviews_delta: data/trusted/reviews_product_info_clean_full
-  secondary_map_parquet: ""   # opcional; dejar "" si no se usa
+  secondary_map_parquet: ''
   output_html: reports/viz/market_brand_bubbles.html
   dedup_reviews: true
   min_reviews_per_cat: 200
   max_categories: 40
   weight_cap_pct: 95.0
   top_products: 200
-
 loves_top10:
   per_category_csv: reports/loves_top10/per_category_top10.csv
   global_csv: reports/loves_top10/global_top10.csv
@@ -574,11 +541,33 @@ loves_top10:
   cards_dir: reports/absa/cards
   thumbs_dir: data/cache/product_images
   out_html: reports/absa/cards/top10_index.html
-  card_pattern: "{product_id}.html"
-
+  card_pattern: '{product_id}.html'
 cards_index:
   products_parquet: data/exploitation/product_info_snapshot.parquet
   cards_dir: reports/absa/cards
   thumbs_dir: data/cache/product_images
-  card_pattern: "{product_id}.html"
+  card_pattern: '{product_id}.html'
   recalc_out_html_wfilters: reports/absa/cards/product_cards_recalc_wfilters.html
+eda:
+  landing:
+    sephora_reviews_glob: data/landing/sephora/raw/reviews_*.csv
+    ulta_reviews_csv: data/landing/ulta/raw/Ulta Skincare Reviews.csv
+    sephora_products_csv: data/landing/sephora/raw/product_info.csv
+    outdirs:
+      sephora_reviews: reports/eda/landing_sephora_reviews
+      ulta_reviews: reports/eda/landing_ulta_reviews
+      sephora_products: reports/eda/landing_sephora_products
+  trusted:
+    root: data/trusted
+    outdir: reports/eda/trusted
+    no_count: ''
+    fix_nanos: --fix-nanos
+    inplace: ''
+    suffix: ''
+  exploitation:
+    root: data/exploitation
+    outdir: reports/eda/exploitation
+    no_count: ''
+    fix_nanos: --fix-nanos
+    inplace: ''
+    suffix: ''

@@ -1,4 +1,10 @@
 /full
-/sample_30pct
-/compare_full_vs_30
 /sample_30
+/compare_full_vs_30
+/landing_sephora_reviews
+/landing_ulta_reviews
+/landing_sephora_products
+/trusted_reviews_full
+/trusted_reviews_product_info_clean_full
+/trusted_reviews_sample_30pct
+/exploitation_product_info_snapshot
