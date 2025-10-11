@@ -1,160 +1,136 @@
-# TFM-Sentidata
+Sentidata — Trabajo de Fin de Máster (UPC Big Data, Machine Learning & AI)
 
-Arquitectura Delta Lake para análisis de productos cosméticos.
+Autores: Pedro Vidal, David Martori y Judith Martínez  
+Máster: Big Data, Machine Learning & Artificial Intelligence — UPC School  
+Año académico: 2025  
+Título del proyecto: Sentidata: Análisis de sentimiento y aspectos en reseñas de productos de cosmética y fragancias mediante arquitectura Delta Lakehouse y modelos de lenguaje (BERT / ALBERT)
 
-CAMBIOS
 
-en trusted_clean_single.py update:
-    Resumen para tu equipo
-    Validamos y tipamos rating (1–5).
-    Normalizamos review_text (trim + lower + sin saltos de línea/tabs).
-    Creamos review_id único y reproducible.
-    Guardamos todas las columnas originales + review_id.
-    Reporte de calidad con distribución de ratings y duplicados.
-    root
-    |-- _c0: string (nullable = true)
-    |-- author_id: string (nullable = true)
-    |-- rating: integer (nullable = true)
-    |-- is_recommended: string (nullable = true)
-    |-- helpfulness: string (nullable = true)
-    |-- total_feedback_count: string (nullable = true)
-    |-- total_neg_feedback_count: string (nullable = true)
-    |-- total_pos_feedback_count: string (nullable = true)
-    |-- submission_time: string (nullable = true)
-    |-- review_text: string (nullable = true)
-    |-- review_title: string (nullable = true)
-    |-- skin_tone: string (nullable = true)
-    |-- eye_color: string (nullable = true)
-    |-- skin_type: string (nullable = true)
-    |-- hair_color: string (nullable = true)
-    |-- product_id: string (nullable = true)
-    |-- product_name: string (nullable = true)
-    |-- brand_name: string (nullable = true)
-    |-- price_usd: string (nullable = true)
-    |-- review_id: string (nullable = true)
+1. Objetivo del Proyecto
 
-├── README.md
-├── data
-│   ├── exploitation
-│   │   ├── analisis_final
-│   │   ├── dashboards_data
-│   │   ├── modelos_input
-│   │   └── products
-│   ├── landing
-│   │   ├── sephora
-│   │   │   ├── delta
-│   │   │   └── raw
-│   │   └── ulta
-│   │       ├── delta
-│   │       └── raw
-│   └── trusted
-│       ├── sephora_clean
-│       │   ├── product_info
-│       │   ├── reviews_0_250
-│       │   ├── reviews_1250_end
-│       │   ├── reviews_250_500
-│       │   ├── reviews_500_750
-│       │   └── reviews_750_1250
-│       └── ulta_clean
-│           └── Ulta Skincare Reviews
-├── dvc.lock
-├── dvc.yaml
-├── dvc.yaml:Zone.Identifier
-├── mlruns
-│   └── 0
-│       ├── 8854a58292f04b77bef57111634c51b0
-│       │   ├── artifacts
-│       │   ├── meta.yaml
-│       │   ├── metrics
-│       │   ├── params
-│       │   └── tags
-│       └── meta.yaml
-├── models
-│   ├── albert_subset
-│   ├── albert_subset_0_250
-│   │   ├── checkpoint-11967
-│   │   │   ├── config.json
-│   │   │   ├── model.safetensors
-│   │   │   ├── optimizer.pt
-│   │   │   ├── rng_state.pth
-│   │   │   ├── scheduler.pt
-│   │   │   ├── special_tokens_map.json
-│   │   │   ├── spiece.model
-│   │   │   ├── tokenizer.json
-│   │   │   ├── tokenizer_config.json
-│   │   │   ├── trainer_state.json
-│   │   │   └── training_args.bin
-│   │   ├── checkpoint-6000
-│   │   │   ├── config.json
-│   │   │   ├── model.safetensors
-│   │   │   ├── optimizer.pt
-│   │   │   ├── rng_state.pth
-│   │   │   ├── scheduler.pt
-│   │   │   ├── special_tokens_map.json
-│   │   │   ├── spiece.model
-│   │   │   ├── tokenizer.json
-│   │   │   ├── tokenizer_config.json
-│   │   │   ├── trainer_state.json
-│   │   │   └── training_args.bin
-│   │   ├── config.json
-│   │   ├── confusion.png
-│   │   ├── metrics.json
-│   │   ├── model.safetensors
-│   │   ├── special_tokens_map.json
-│   │   ├── spiece.model
-│   │   ├── tokenizer.json
-│   │   ├── tokenizer_config.json
-│   │   └── training_args.bin
-│   ├── mlflow_runs
-│   │   └── 0
-│   │       └── meta.yaml
-│   └── model_lr_price.pkl
-├── notebooks
-├── params.yaml
-├── reports
-│   ├── albert_subset_0_250
-│   │   ├── confusion.png
-│   │   ├── metrics.json
-│   │   ├── predictions.parquet
-│   │   └── test.parquet
-│   ├── albert_subset_all
-│   │   ├── confusion_all.png
-│   │   ├── metrics_overall.json
-│   │   ├── metrics_partitions.csv
-│   │   ├── predictions_all.parquet
-│   │   ├── reviews_0_250_preds.parquet
-│   │   ├── reviews_1250_end_preds.parquet
-│   │   ├── reviews_250_500_preds.parquet
-│   │   ├── reviews_500_750_preds.parquet
-│   │   └── reviews_750_1250_preds.parquet
-│   └── figures
-├── requirements.txt
-├── scripts
-│   ├── data_cleaning
-│   │   ├── conversion_a_delta.py
-│   │   ├── trusted_clean_driver.py
-│   │   ├── trusted_clean_driver.py:Zone.Identifier
-│   │   ├── trusted_clean_single.py
-│   │   └── trusted_clean_single.py:Zone.Identifier
-│   ├── data_ingestion
-│   │   └── descarga_kaggle_reviews.py
-│   ├── data_integration
-│   ├── evaluation
-│   │   ├── merge_parquets.py
-│   │   ├── metrics_overall.py
-│   │   └── metrics_partitions.py
-│   ├── main.py
-│   ├── main.py:Zone.Identifier
-│   ├── setup
-│   │   ├── dvc_run.sh
-│   │   └── verificar_dvc.sh
-│   ├── training
-│   │   ├── check_parquet_columns2.py
-│   │   ├── conteo.py
-│   │   ├── evaluate_albert.py
-│   │   ├── infer_albert_all.py
-│   │   ├── prepare_test_parquet.py
-│   │   └── train_albert.py
-│   └── visualization
-├── tests
-└── tmp_trainer
+El proyecto Sentidata tiene como objetivo diseñar un sistema escalable de análisis de reseñas de productos cosméticos que permita:
+- Analizar el sentimiento global de los consumidores.  
+- Detectar los aspectos específicos (fragrance, texture, price, packaging, etc.) que influyen en ese sentimiento.  
+- Extraer insights de negocio útiles para marketing e innovación de producto.
+
+El enfoque combina técnicas de procesamiento del lenguaje natural (NLP) con una arquitectura Lakehouse basada en Delta Lake y Spark, asegurando reproducibilidad mediante DVC (Data Version Control).
+
+
+2. Arquitectura Técnica
+
+El proyecto se estructura en tres niveles del data lakehouse:
+
+Capa: Landing (Bronze)
+Carpeta: data/landing/
+Descripción: Datos brutos descargados de Kaggle (Sephora y Ulta).
+
+Capa: Trusted (Silver)
+Carpeta: data/trusted/
+Descripción: Datos limpiados, normalizados y convertidos a Delta Lake.
+
+Capa: Exploitation (Gold)
+Carpeta: data/exploitation/
+Descripción: Datasets listos para modelado, visualización y análisis ABSA.
+
+Tecnologías principales:
+- Apache Spark 3.5.3 + Delta Lake 3.1.0  
+- Python 3.10 + PySpark + Transformers (HuggingFace)  
+- DVC para la orquestación de pipelines y versionado de datos  
+- MLflow para trazabilidad de experimentos y modelos  
+- Altair y HTML reports para visualización final
+
+
+3. Fases Analíticas
+
+Fase 1 — Sentiment Analysis
+- Entrenamiento de clasificadores base (TF-IDF + SVM / Random Forest / Logistic Regression).  
+- Fine-tuning de modelos ALBERT multiclase (positivo, neutro, negativo).  
+- Inferencia sobre todo el corpus (1.1M reseñas) con GPU NVIDIA RTX 4050.  
+- Evaluación mediante matrices de confusión, F1-score y análisis por categoría.
+
+Fase 2 — Aspect-Based Sentiment Analysis (ABSA)
+- Extracción de aspect terms mediante reglas y modelos ATE.  
+- Mapeo de aspectos a una ontología de producto (fragancia, textura, precio, etc.).  
+- Cálculo del sentimiento por aspecto y generación de informes HTML.  
+- Visualización de resultados mediante tarjetas de producto y dashboards comparativos.
+
+
+4. Reproducibilidad y Ejecución
+
+Requisitos previos:
+- Ubuntu 22.04 (WSL o Linux nativo)  
+- Python ≥ 3.10  
+- Java ≥ 11  
+- Spark 3.5.3 con Delta 3.1.0  
+- DVC ≥ 3.0  
+- MLflow ≥ 2.14  
+- GPU NVIDIA con CUDA ≥ 12.1 (opcional pero recomendado)
+
+Instalación básica:
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+
+Ejecución del pipeline:
+    dvc repro
+
+Ejecución de una etapa concreta:
+    dvc repro -s train_albert_sample
+
+Generación de visualizaciones finales:
+    dvc repro -s make_product_cards_html
+
+Guardar logs de ejecución:
+    dvc repro --force | tee logs/repro_$(date +%Y%m%d).txt
+
+
+5. Estructura del Proyecto
+
+TFM-Sentidata/
+│
+├── data/
+│   ├── landing/            # Datos brutos (Kaggle, etc.)
+│   ├── trusted/            # Datos limpios y en Delta Lake
+│   └── exploitation/       # Datasets listos para modelado
+│
+├── scripts/
+│   ├── ingest/             # Ingesta de datos
+│   ├── cleaning/           # Limpieza y transformación
+│   ├── training/           # Entrenamiento y evaluación
+│   ├── infer/              # Inferencia y predicciones
+│   ├── absa/               # Aspect-based sentiment analysis
+│   └── viz/                # Visualizaciones y dashboards
+│
+├── reports/
+│   ├── sentiment_albert/   # Resultados y métricas
+│   ├── absa/               # Product cards, dashboards, etc.
+│   └── eda/                # Exploratory Data Analysis
+│
+├── params.yaml             # Parámetros globales del pipeline
+├── dvc.yaml                # Definición de etapas DVC
+├── requirements.txt        # Dependencias Python
+└── README.txt              # Este documento
+
+
+6. Resultados y Conclusiones
+
+- El modelo ALBERT logra un 89 % de accuracy global, con F1 ponderado de 0.88.  
+- El sistema ABSA permite visualizar los atributos más valorados por los consumidores y detectar oportunidades de mejora en gamas específicas.  
+- El enfoque Lakehouse y DVC garantiza reproducibilidad, escalabilidad y trazabilidad del proceso analítico.
+
+
+7. Futuras Líneas de Trabajo
+
+- Integración con fuentes sociales (Reddit, TikTok, Instagram).  
+- Despliegue del pipeline como API o servicio SaaS para equipos de innovación.
+
+
+8. Referencias
+
+- Delta Lake Documentation — https://docs.delta.io  
+- HuggingFace Transformers — https://huggingface.co/transformers  
+- DVC Docs — https://dvc.org/doc  
+- MLflow — https://mlflow.org  
+
+
+© 2025 — Pedro Vidal, David Martori y Judith Martínez. Trabajo de Fin de Máster (UPC Big Data, Machine Learning & AI).
