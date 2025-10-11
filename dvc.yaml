@@ -225,6 +225,43 @@ stages:
       - 'data/trusted/ulta_clean/Ulta Skincare Reviews'
     outs:
       - reports/sentiment_rf_sample/ulta_top50
+  
+  train_svm:
+    cmd: >
+      python scripts/training/train_svm.py
+      --train data/exploitation/modelos_input/sample_tvt/train
+      --val   data/exploitation/modelos_input/sample_tvt/val
+      --model-out models/sentiment_svm_sample
+    deps:
+      - scripts/training/train_svm.py
+      - data/exploitation/modelos_input/sample_tvt/train
+      - data/exploitation/modelos_input/sample_tvt/val
+    outs:
+      - models/sentiment_svm_sample
+
+  evaluate_svm:
+    cmd: >
+      python scripts/training/infer_svm.py
+      --model-dir models/sentiment_svm_sample
+      --input data/exploitation/modelos_input/sample_tvt/test
+      --output-dir reports/sentiment_svm_sample/eval
+      --text-col review_text --id-col review_id
+    deps:
+      - scripts/training/infer_svm.py
+      - models/sentiment_svm_sample
+      - data/exploitation/modelos_input/sample_tvt/test
+    outs:
+      - reports/sentiment_svm_sample/eval
+  eval_confusion_matrices:
+    cmd: >
+      python scripts/training/eval_confusion_matrices.py
+    deps:
+      - scripts/training/eval_confusion_matrices.py
+      - reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+      - reports/sentiment_rf_sample/eval/test_predictions.parquet
+      - data/exploitation/modelos_input/sample_tvt/test
+    outs:
+      - reports/eval/confusion_matrices/
 
   merge_reviews_product_info:
     cmd: >

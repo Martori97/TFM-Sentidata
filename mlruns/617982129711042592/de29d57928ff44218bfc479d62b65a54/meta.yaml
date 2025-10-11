@@ -1,0 +1,14 @@
+artifact_uri: file:///home/pedro/MASTER_BIGDATA/TFM/TFM-Sentidata/mlruns/617982129711042592/de29d57928ff44218bfc479d62b65a54/artifacts
+end_time: 1760188667843
+entry_point_name: ''
+experiment_id: '617982129711042592'
+lifecycle_stage: active
+run_id: de29d57928ff44218bfc479d62b65a54
+run_name: svm_train
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1760188667835
+status: 3
+tags: []
+user_id: pedro

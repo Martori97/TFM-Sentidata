@@ -1927,3 +1927,78 @@ stages:
       md5: ccd90f644ed148c66c8f2455a65b581b.dir
       size: 5125
       nfiles: 46
+  eval_confusion_matrices:
+    cmd: "python scripts/training/eval_confusion_matrices.py\n"
+    deps:
+    - path: data/exploitation/modelos_input/sample_tvt/test
+      hash: md5
+      md5: 989635988cbce1bae11cbb4347855038.dir
+      size: 21386747
+      nfiles: 1
+    - path: reports/albert_sample_30pct/infer_full_pandas/predictions.parquet
+      hash: md5
+      md5: 76cac934368a101c694d099517b5c1fd
+      size: 57378857
+    - path: reports/sentiment_rf_sample/eval/test_predictions.parquet
+      hash: md5
+      md5: 9e1bc5f14e2b599718649443c65e74c7
+      size: 1964922
+    - path: scripts/training/eval_confusion_matrices.py
+      hash: md5
+      md5: 2516dd531e80056d124f29da128c2a67
+      size: 9272
+    outs:
+    - path: reports/eval/confusion_matrices/
+      hash: md5
+      md5: 44962a149fcb4ab115400d3ff369e794.dir
+      size: 1434
+      nfiles: 6
+  train_svm:
+    cmd: "python scripts/training/train_svm.py --train data/exploitation/modelos_input/sample_tvt/train
+      --val   data/exploitation/modelos_input/sample_tvt/val --model-out models/sentiment_svm_sample\n"
+    deps:
+    - path: data/exploitation/modelos_input/sample_tvt/train
+      hash: md5
+      md5: 66a0af1b68d9c71fb2a21d901b06d949.dir
+      size: 105974196
+      nfiles: 1
+    - path: data/exploitation/modelos_input/sample_tvt/val
+      hash: md5
+      md5: 438f5cc77205c58ae0825afb075d9be6.dir
+      size: 14251404
+      nfiles: 1
+    - path: scripts/training/train_svm.py
+      hash: md5
+      md5: 073ca937c0b0479aa74d2cfe185a4a84
+      size: 10725
+    outs:
+    - path: models/sentiment_svm_sample
+      hash: md5
+      md5: 9ecde76360b4d13c4ec1f893da137492.dir
+      size: 18677894
+      nfiles: 3
+  evaluate_svm:
+    cmd: "python scripts/training/infer_svm.py --model-dir models/sentiment_svm_sample
+      --input data/exploitation/modelos_input/sample_tvt/test --output-dir reports/sentiment_svm_sample/eval
+      --text-col review_text --id-col review_id\n"
+    deps:
+    - path: data/exploitation/modelos_input/sample_tvt/test
+      hash: md5
+      md5: 989635988cbce1bae11cbb4347855038.dir
+      size: 21386747
+      nfiles: 1
+    - path: models/sentiment_svm_sample
+      hash: md5
+      md5: 9ecde76360b4d13c4ec1f893da137492.dir
+      size: 18677894
+      nfiles: 3
+    - path: scripts/training/infer_svm.py
+      hash: md5
+      md5: d27f85d544d4fa28c455edc2d1b3c6c0
+      size: 6867
+    outs:
+    - path: reports/sentiment_svm_sample/eval
+      hash: md5
+      md5: c4090a47efba1af5c19b301287402102.dir
+      size: 1952705
+      nfiles: 1
