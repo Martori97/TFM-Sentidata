@@ -101,7 +101,7 @@ TFM-Sentidata/
 
 6. Resultados y Conclusiones
 
-- El modelo ALBERT logra un 89 % de accuracy global, con F1 ponderado de 0.88.  
+- El modelo ALBERT logra un 84 % de accuracy global, con F1 ponderado de 0.84.  
 - El sistema ABSA permite visualizar los atributos más valorados por los consumidores y detectar oportunidades de mejora en gamas específicas.  
 - El enfoque Lakehouse y DVC garantiza reproducibilidad, escalabilidad y trazabilidad del proceso analítico.
 
