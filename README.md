@@ -43,9 +43,9 @@ Tecnologías principales:
 3. Fases Analíticas
 
 Fase 1 — Sentiment Analysis
-- Entrenamiento de clasificadores base (TF-IDF + SVM / Random Forest / Logistic Regression).  
+- Entrenamiento de clasificadores base (TF-IDF + SVM / Random Forest).  
 - Fine-tuning de modelos ALBERT multiclase (positivo, neutro, negativo).  
-- Inferencia sobre todo el corpus (1.1M reseñas) con GPU NVIDIA RTX 4050.  
+- Inferencia sobre todo el corpus (1.1M reseñas).  
 - Evaluación mediante matrices de confusión, F1-score y análisis por categoría.
 
 Fase 2 — Aspect-Based Sentiment Analysis (ABSA)
@@ -64,25 +64,12 @@ Requisitos previos:
 - Spark 3.5.3 con Delta 3.1.0  
 - DVC ≥ 3.0  
 - MLflow ≥ 2.14  
-- GPU NVIDIA con CUDA ≥ 12.1 (opcional pero recomendado)
+
 
 Instalación básica:
     python3 -m venv venv
     source venv/bin/activate
     pip install -r requirements.txt
-
-Ejecución del pipeline:
-    dvc repro
-
-Ejecución de una etapa concreta:
-    dvc repro -s train_albert_sample
-
-Generación de visualizaciones finales:
-    dvc repro -s make_product_cards_html
-
-Guardar logs de ejecución:
-    dvc repro --force | tee logs/repro_$(date +%Y%m%d).txt
-
 
 5. Estructura del Proyecto
 
@@ -121,7 +108,7 @@ TFM-Sentidata/
 
 7. Futuras Líneas de Trabajo
 
-- Integración con fuentes sociales (Reddit, TikTok, Instagram).  
+- Integración con fuentes sociales (Reddit, TikTok, Instagram) y e-retailers (Amazon).  
 - Despliegue del pipeline como API o servicio SaaS para equipos de innovación.
 
 
